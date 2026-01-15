@@ -47,7 +47,7 @@ src/lib/           # Shared utilities (cost formatting, types, db access)
   - Helper functions: `timeToHours`, `calculateAssumedTimeValue`, `formatMoneyCents`, `formatTime`
   - Factory functions: `createTimeCost`, `createMoneyCost`
 - [x] All 23 tests passing for cost model utilities
-- [ ] Document cost categories with examples in `specs/cost-model.md` (update if needed)
+- [x] Document cost categories with examples in `specs/cost-model.md` (update if needed)
 
 ---
 
@@ -116,13 +116,13 @@ src/lib/           # Shared utilities (cost formatting, types, db access)
   - Updates `analysis_status`
 - [ ] Implement parallelization (multiple Claude instances)
 - [x] Add idempotency: skip already-analyzed documents
-- [ ] Implement retry logic for failed analyses
+- [x] Implement retry logic for failed analyses
 - [x] Add logging and progress reporting
 
 ### 3.3 Analysis Quality
 - [ ] Handle long documents (chunking/summarization strategy)
 - [ ] Handle documents referencing other legislation
-- [ ] Validate Claude outputs for consistency
+- [x] Validate Claude outputs for consistency
 - [ ] Create test suite with known-cost legislation
 
 ---
@@ -192,7 +192,7 @@ src/lib/           # Shared utilities (cost formatting, types, db access)
 - [x] Performance testing (index load < 2s) - actual: < 0.1s
 
 ### 5.2 Documentation
-- [ ] Update README with setup instructions
+- [x] Update README with setup instructions
 - [ ] Document analysis methodology
 - [ ] Add sample queries for database exploration
 
@@ -200,14 +200,42 @@ src/lib/           # Shared utilities (cost formatting, types, db access)
 
 ## Work Log
 
+### 2026-01-16 - README, Retry Logic, and Validation Complete
+
+**README.md Created:**
+- Project overview and architecture
+- Prerequisites (Node.js, Python, Claude CLI, Hugging Face CLI)
+- Quick start guide with numbered steps
+- Project structure documentation
+- Tests and database queries sections
+- Corpus details and cost model summary
+
+**Retry Logic Implemented (Priority 3.2):**
+- `RetryableError` and `NonRetryableError` exception classes
+- `analyze_with_retry()` function with exponential backoff (2, 4, 8 seconds)
+- `--retries` flag to configure max attempts (default: 3)
+- `--retry-failed` flag to re-analyze failed legislation
+- Distinguishes transient errors (timeout, rate limit) from permanent errors
+
+**Output Validation Implemented (Priority 3.3):**
+- `validate_analysis()` function validates Claude responses
+- Checks required fields, party enums, frequency enums, time units, numeric amounts
+- Validation warnings logged but don't block saving (for data quality tracking)
+
+**Files Modified:**
+- `analysis/scripts/analyze_legislation.py` - added retry logic and validation
+- `README.md` - created with comprehensive documentation
+
+---
+
 ### 2026-01-16 - End-to-End Flow Verified (Priority 5.1)
 
 **WHY:** Before scaling the analysis pipeline, the complete data flow must be validated to ensure each component integrates correctly. This prevents wasted effort analyzing thousands of documents only to discover integration issues.
 
 **Verification Results:**
-- ✓ Corpus → Analysis → Database pipeline: 7 legislation items successfully analyzed with cost extraction
-- ✓ Database → Website display: All cost types (compliance/enforcement), parties (citizen/business), time/money values, and indefinite cost notes render correctly
-- ✓ Performance: Index page loads in < 0.1s (requirement: < 2s)
+- Corpus -> Analysis -> Database pipeline: 7 legislation items successfully analyzed with cost extraction
+- Database -> Website display: All cost types (compliance/enforcement), parties (citizen/business), time/money values, and indefinite cost notes render correctly
+- Performance: Index page loads in < 0.1s (requirement: < 2s)
 - Topics page shows "No topics found" because existing 7 analyzed items predate topic extraction - this is expected and documented
 
 **Current Database State:**

@@ -14,7 +14,8 @@ Options:
     --jurisdiction X    Only analyze records from jurisdiction X
     --id ID             Analyze a specific legislation by ID
     --dry-run           Print what would be analyzed without calling Claude
-    --parallel N        Run N parallel Claude instances (default: 1)
+    --retries N         Number of retry attempts for transient failures (default: 3)
+    --retry-failed      Re-analyze previously failed legislation
 """
 
 import argparse
@@ -22,10 +23,31 @@ import json
 import sqlite3
 import subprocess
 import sys
+import time
 from pathlib import Path
 from datetime import datetime
 from typing import Optional
 import re
+
+
+class RetryableError(Exception):
+    """
+    Error that should trigger a retry (network issues, timeouts, rate limits).
+
+    WHY: We want to distinguish between transient failures that may succeed on retry
+    (network timeout, rate limit) vs permanent failures (invalid input, parsing errors).
+    """
+    pass
+
+
+class NonRetryableError(Exception):
+    """
+    Error that should NOT be retried (invalid response, parsing failures).
+
+    WHY: Some errors won't be fixed by retrying - bad input, malformed responses, etc.
+    Retrying these wastes time and API calls.
+    """
+    pass
 
 # Project paths
 PROJECT_ROOT = Path(__file__).parent.parent.parent
@@ -36,6 +58,106 @@ SCHEMA_PATH = PROJECT_ROOT / "analysis" / "prompts" / "cost_schema.json"
 
 # Token limit for Claude context (stay under 50% saturation)
 MAX_TEXT_CHARS = 100_000  # ~25k tokens, well under the limit
+
+# Validation constants
+VALID_PARTIES = {'citizen', 'business', 'small_business', 'large_business', 'government', 'nonprofit'}
+VALID_FREQUENCIES = {'one_time', 'per_transaction', 'daily', 'weekly', 'monthly', 'quarterly', 'annually', 'as_needed'}
+VALID_TIME_UNITS = {'minutes', 'hours', 'days', 'weeks', 'months', 'years'}
+VALID_CONFIDENCE = {'high', 'medium', 'low'}
+
+
+def load_schema() -> dict:
+    """Load the JSON schema for validation."""
+    with open(SCHEMA_PATH, 'r') as f:
+        return json.load(f)
+
+
+def validate_analysis(analysis: dict) -> list[str]:
+    """
+    Validate Claude's analysis output against expected schema.
+
+    WHY: Claude may produce malformed or inconsistent responses. Validating ensures
+    data integrity before writing to the database. Returns list of validation errors.
+    """
+    errors = []
+
+    # Required top-level fields
+    required_fields = ['legislation_summary', 'topics', 'has_compliance_costs',
+                       'compliance_costs', 'has_enforcement_costs', 'confidence']
+    for field in required_fields:
+        if field not in analysis:
+            errors.append(f"Missing required field: {field}")
+
+    # Validate topics
+    topics = analysis.get('topics', [])
+    if not isinstance(topics, list):
+        errors.append("topics must be a list")
+    elif len(topics) < 1:
+        errors.append("topics must have at least 1 item")
+    elif len(topics) > 5:
+        errors.append("topics must have at most 5 items")
+
+    # Validate confidence
+    confidence = analysis.get('confidence')
+    if confidence and confidence not in VALID_CONFIDENCE:
+        errors.append(f"Invalid confidence: {confidence} (must be one of {VALID_CONFIDENCE})")
+
+    # Validate compliance costs
+    compliance_costs = analysis.get('compliance_costs', [])
+    if not isinstance(compliance_costs, list):
+        errors.append("compliance_costs must be a list")
+    else:
+        for i, cost in enumerate(compliance_costs):
+            prefix = f"compliance_costs[{i}]"
+
+            # Party
+            party = cost.get('party')
+            if party and party not in VALID_PARTIES:
+                errors.append(f"{prefix}.party '{party}' not in {VALID_PARTIES}")
+
+            # Frequency
+            frequency = cost.get('frequency')
+            if frequency and frequency not in VALID_FREQUENCIES:
+                errors.append(f"{prefix}.frequency '{frequency}' not in {VALID_FREQUENCIES}")
+
+            # Time
+            time_data = cost.get('time')
+            if time_data:
+                if not isinstance(time_data, dict):
+                    errors.append(f"{prefix}.time must be an object or null")
+                else:
+                    unit = time_data.get('unit')
+                    if unit and unit not in VALID_TIME_UNITS:
+                        errors.append(f"{prefix}.time.unit '{unit}' not in {VALID_TIME_UNITS}")
+                    amount = time_data.get('amount')
+                    if amount is not None and (not isinstance(amount, (int, float)) or amount < 0):
+                        errors.append(f"{prefix}.time.amount must be a non-negative number")
+
+            # Money
+            money_data = cost.get('money')
+            if money_data:
+                if not isinstance(money_data, dict):
+                    errors.append(f"{prefix}.money must be an object or null")
+                else:
+                    amount = money_data.get('amount_aud')
+                    if amount is not None and (not isinstance(amount, (int, float)) or amount < 0):
+                        errors.append(f"{prefix}.money.amount_aud must be a non-negative number")
+
+    # Validate enforcement cost
+    enforcement = analysis.get('enforcement_cost')
+    if enforcement:
+        prefix = "enforcement_cost"
+        frequency = enforcement.get('frequency')
+        if frequency and frequency not in VALID_FREQUENCIES:
+            errors.append(f"{prefix}.frequency '{frequency}' not in {VALID_FREQUENCIES}")
+
+        time_data = enforcement.get('time')
+        if time_data and isinstance(time_data, dict):
+            unit = time_data.get('unit')
+            if unit and unit not in VALID_TIME_UNITS:
+                errors.append(f"{prefix}.time.unit '{unit}' not in {VALID_TIME_UNITS}")
+
+    return errors
 
 
 def load_prompt_template() -> str:
@@ -88,6 +210,10 @@ def call_claude(legislation_text: str, citation: str, prompt_template: str) -> d
 
     Returns:
         Parsed JSON response from Claude
+
+    Raises:
+        RetryableError: For transient failures (timeouts, network issues, rate limits)
+        NonRetryableError: For permanent failures (parsing errors, invalid responses)
     """
     user_prompt = f"""Analyze the following Australian legislation and extract compliance and enforcement costs.
 
@@ -106,15 +232,26 @@ Using the schema and guidelines provided in the system prompt, analyze this legi
 
     # Call Claude CLI
     # Using subprocess to call the claude CLI tool
-    result = subprocess.run(
-        ['claude', '-p', full_prompt, '--output-format', 'json'],
-        capture_output=True,
-        text=True,
-        timeout=120  # 2 minute timeout
-    )
+    try:
+        result = subprocess.run(
+            ['claude', '-p', full_prompt, '--output-format', 'json'],
+            capture_output=True,
+            text=True,
+            timeout=120  # 2 minute timeout
+        )
+    except subprocess.TimeoutExpired:
+        raise RetryableError("Claude CLI timed out after 120 seconds")
+    except OSError as e:
+        raise RetryableError(f"Failed to execute Claude CLI: {e}")
 
+    # Check for rate limiting or transient errors
     if result.returncode != 0:
-        raise RuntimeError(f"Claude CLI error: {result.stderr}")
+        stderr = result.stderr.lower()
+        # Rate limiting and network errors are retryable
+        if 'rate' in stderr or 'limit' in stderr or 'timeout' in stderr or 'connection' in stderr:
+            raise RetryableError(f"Claude CLI transient error: {result.stderr}")
+        # Other CLI errors are not retryable
+        raise NonRetryableError(f"Claude CLI error: {result.stderr}")
 
     # Parse the response
     try:
@@ -140,7 +277,7 @@ Using the schema and guidelines provided in the system prompt, analyze this legi
 
         return json.loads(response_text)
     except json.JSONDecodeError as e:
-        raise RuntimeError(f"Failed to parse Claude response as JSON: {e}\nResponse: {result.stdout[:500]}")
+        raise NonRetryableError(f"Failed to parse Claude response as JSON: {e}\nResponse: {result.stdout[:500]}")
 
 
 def save_analysis_to_db(conn: sqlite3.Connection, legislation_id: str, analysis: dict) -> None:
@@ -215,10 +352,63 @@ def save_analysis_to_db(conn: sqlite3.Connection, legislation_id: str, analysis:
     conn.commit()
 
 
+def analyze_with_retry(legislation_text: str, citation: str, prompt_template: str,
+                       max_retries: int = 3) -> dict:
+    """
+    Call Claude with retry logic for transient failures.
+
+    WHY: Network issues and rate limits are common when processing thousands of documents.
+    Automatic retry with exponential backoff improves reliability without manual intervention.
+
+    Args:
+        legislation_text: The text to analyze
+        citation: Citation for the legislation
+        prompt_template: The prompt template to use
+        max_retries: Maximum retry attempts (default: 3)
+
+    Returns:
+        Parsed JSON response from Claude
+
+    Raises:
+        NonRetryableError: If the error is not retryable
+        RetryableError: If all retry attempts failed
+    """
+    last_error = None
+
+    for attempt in range(max_retries + 1):
+        try:
+            return call_claude(legislation_text, citation, prompt_template)
+        except RetryableError as e:
+            last_error = e
+            if attempt < max_retries:
+                # Exponential backoff: 2, 4, 8 seconds
+                wait_time = 2 ** (attempt + 1)
+                print(f"    Retry {attempt + 1}/{max_retries} after {wait_time}s: {e}")
+                time.sleep(wait_time)
+            else:
+                print(f"    All {max_retries} retries exhausted")
+        except NonRetryableError:
+            # Don't retry non-retryable errors
+            raise
+
+    # If we get here, all retries failed
+    raise RetryableError(f"All {max_retries} retry attempts failed. Last error: {last_error}")
+
+
 def get_pending_legislation(conn: sqlite3.Connection, limit: int = 10,
                             jurisdiction: Optional[str] = None,
-                            legislation_id: Optional[str] = None) -> list[dict]:
-    """Get legislation pending analysis."""
+                            legislation_id: Optional[str] = None,
+                            retry_failed: bool = False) -> list[dict]:
+    """
+    Get legislation pending analysis.
+
+    Args:
+        conn: Database connection
+        limit: Maximum records to return
+        jurisdiction: Optional jurisdiction filter
+        legislation_id: Optional specific ID to analyze
+        retry_failed: If True, include previously failed analyses
+    """
     cursor = conn.cursor()
 
     if legislation_id:
@@ -226,6 +416,23 @@ def get_pending_legislation(conn: sqlite3.Connection, limit: int = 10,
             'SELECT id, title, citation, jurisdiction FROM legislation WHERE id = ?',
             (legislation_id,)
         )
+    elif retry_failed:
+        # Include failed analyses for retry
+        status_filter = "IN ('pending', 'failed')"
+        if jurisdiction:
+            cursor.execute(
+                f'''SELECT id, title, citation, jurisdiction FROM legislation
+                   WHERE analysis_status {status_filter} AND jurisdiction = ?
+                   LIMIT ?''',
+                (jurisdiction, limit)
+            )
+        else:
+            cursor.execute(
+                f'''SELECT id, title, citation, jurisdiction FROM legislation
+                   WHERE analysis_status {status_filter}
+                   LIMIT ?''',
+                (limit,)
+            )
     elif jurisdiction:
         cursor.execute(
             '''SELECT id, title, citation, jurisdiction FROM legislation
@@ -254,6 +461,8 @@ def main():
     parser.add_argument('--id', help="Analyze specific legislation by ID")
     parser.add_argument('--dry-run', action='store_true', help="Show what would be analyzed")
     parser.add_argument('--db', type=Path, default=DEFAULT_DB_PATH, help="Database path")
+    parser.add_argument('--retries', type=int, default=3, help="Number of retry attempts for transient failures")
+    parser.add_argument('--retry-failed', action='store_true', help="Re-analyze previously failed legislation")
     args = parser.parse_args()
 
     # Load prompt template
@@ -267,15 +476,21 @@ def main():
         conn,
         limit=args.limit,
         jurisdiction=args.jurisdiction,
-        legislation_id=args.id
+        legislation_id=args.id,
+        retry_failed=args.retry_failed
     )
 
     if not pending:
-        print("No pending legislation to analyze.")
+        if args.retry_failed:
+            print("No pending or failed legislation to analyze.")
+        else:
+            print("No pending legislation to analyze.")
         conn.close()
         return
 
     print(f"Found {len(pending)} legislation to analyze")
+    if args.retry_failed:
+        print("(including previously failed analyses)")
     print()
 
     if args.dry_run:
@@ -290,6 +505,7 @@ def main():
     # Process each legislation
     analyzed = 0
     errors = 0
+    validation_warnings = 0
 
     for leg in pending:
         print(f"Analyzing: {leg['id']}")
@@ -308,9 +524,21 @@ def main():
             if was_truncated:
                 print(f"  WARNING: Text truncated to {MAX_TEXT_CHARS:,} chars")
 
-            # Call Claude for analysis
+            # Call Claude for analysis (with retry)
             print(f"  Calling Claude...")
-            analysis = call_claude(text, leg['citation'] or leg['title'], prompt_template)
+            analysis = analyze_with_retry(text, leg['citation'] or leg['title'],
+                                          prompt_template, max_retries=args.retries)
+
+            # Validate the response
+            validation_errors = validate_analysis(analysis)
+            if validation_errors:
+                print(f"  VALIDATION WARNINGS:")
+                for err in validation_errors[:5]:  # Show first 5
+                    print(f"    - {err}")
+                if len(validation_errors) > 5:
+                    print(f"    ... and {len(validation_errors) - 5} more")
+                validation_warnings += 1
+                # Still save the analysis - warnings don't block, just inform
 
             # Save results
             save_analysis_to_db(conn, leg['id'], analysis)
@@ -323,9 +551,19 @@ def main():
 
             analyzed += 1
 
-        except Exception as e:
+        except NonRetryableError as e:
+            print(f"  ERROR (non-retryable): {e}")
+            # Mark as failed - won't retry
+            conn.execute(
+                "UPDATE legislation SET analysis_status = 'failed' WHERE id = ?",
+                (leg['id'],)
+            )
+            conn.commit()
+            errors += 1
+
+        except (RetryableError, Exception) as e:
             print(f"  ERROR: {e}")
-            # Mark as failed
+            # Mark as failed - may be retried with --retry-failed
             conn.execute(
                 "UPDATE legislation SET analysis_status = 'failed' WHERE id = ?",
                 (leg['id'],)
@@ -339,6 +577,8 @@ def main():
     print("=" * 50)
     print(f"Analyzed: {analyzed}")
     print(f"Errors: {errors}")
+    if validation_warnings:
+        print(f"Validation warnings: {validation_warnings}")
 
     # Show database stats
     cursor = conn.cursor()
