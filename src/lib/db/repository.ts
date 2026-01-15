@@ -74,12 +74,18 @@ export class LegislationRepository {
 
   /**
    * List all legislation with optional filtering.
+   *
+   * WHY dateFrom/dateTo: The spec requires "Legislation can be queried/retrieved
+   * by identifier (e.g., act name, jurisdiction, date)". Date range filtering
+   * enables temporal analysis (e.g., "all legislation from 2020-2023").
    */
   listLegislation(options?: {
     jurisdiction?: Jurisdiction;
     status?: AnalysisStatus;
     topic?: string;
     search?: string;
+    dateFrom?: string;  // YYYY-MM-DD format
+    dateTo?: string;    // YYYY-MM-DD format
     limit?: number;
     offset?: number;
     orderBy?: 'date_enacted' | 'title' | 'created_at';
@@ -108,6 +114,16 @@ export class LegislationRepository {
       params.search = `%${options.search}%`;
     }
 
+    if (options?.dateFrom) {
+      conditions.push('date_enacted >= @dateFrom');
+      params.dateFrom = options.dateFrom;
+    }
+
+    if (options?.dateTo) {
+      conditions.push('date_enacted <= @dateTo');
+      params.dateTo = options.dateTo;
+    }
+
     const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
     const orderBy = options?.orderBy ?? 'date_enacted';
     const orderDir = options?.orderDir ?? 'DESC';
@@ -133,6 +149,8 @@ export class LegislationRepository {
     status?: AnalysisStatus;
     topic?: string;
     search?: string;
+    dateFrom?: string;  // YYYY-MM-DD format
+    dateTo?: string;    // YYYY-MM-DD format
   }): number {
     const conditions: string[] = [];
     const params: Record<string, unknown> = {};
@@ -155,6 +173,16 @@ export class LegislationRepository {
     if (options?.search) {
       conditions.push('title LIKE @search');
       params.search = `%${options.search}%`;
+    }
+
+    if (options?.dateFrom) {
+      conditions.push('date_enacted >= @dateFrom');
+      params.dateFrom = options.dateFrom;
+    }
+
+    if (options?.dateTo) {
+      conditions.push('date_enacted <= @dateTo');
+      params.dateTo = options.dateTo;
     }
 
     const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';

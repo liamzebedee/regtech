@@ -53,8 +53,12 @@ class NonRetryableError(Exception):
 PROJECT_ROOT = Path(__file__).parent.parent.parent
 DEFAULT_DB_PATH = PROJECT_ROOT / "data" / "legislation.db"
 CORPUS_PATH = PROJECT_ROOT / "data" / "corpus" / "corpus.jsonl"
+CORPUS_INDEX_PATH = PROJECT_ROOT / "data" / "corpus" / "corpus_index.json"
 PROMPT_PATH = PROJECT_ROOT / "analysis" / "prompts" / "cost_extraction.md"
 SCHEMA_PATH = PROJECT_ROOT / "analysis" / "prompts" / "cost_schema.json"
+
+# Global corpus index (loaded once at startup for O(1) lookups)
+_corpus_index: Optional[dict] = None
 
 # Token limit for Claude context (stay under 50% saturation)
 MAX_TEXT_CHARS = 100_000  # ~25k tokens, well under the limit
@@ -166,13 +170,53 @@ def load_prompt_template() -> str:
         return f.read()
 
 
+def load_corpus_index() -> dict:
+    """
+    Load the corpus byte-offset index for O(1) lookups.
+
+    WHY: The corpus is 8.8GB. Without an index, each lookup scans the entire file (O(n)).
+    With the index, we seek directly to the record's byte position (O(1)).
+    """
+    global _corpus_index
+
+    if _corpus_index is not None:
+        return _corpus_index
+
+    if not CORPUS_INDEX_PATH.exists():
+        print(f"WARNING: Corpus index not found at {CORPUS_INDEX_PATH}")
+        print("Run 'python analysis/scripts/build_corpus_index.py' to create it.")
+        print("Falling back to linear scan (slow)...")
+        return {}
+
+    with open(CORPUS_INDEX_PATH, 'r', encoding='utf-8') as f:
+        _corpus_index = json.load(f)
+
+    print(f"Loaded corpus index with {len(_corpus_index):,} entries")
+    return _corpus_index
+
+
 def get_legislation_text(version_id: str) -> Optional[str]:
     """
     Retrieve the full text for a legislation from the corpus.
 
     WHY: The database only stores excerpts. We need the full text for analysis.
+    Uses byte-offset index for O(1) lookup if available, falls back to linear scan.
     """
-    with open(CORPUS_PATH, 'r') as f:
+    index = load_corpus_index()
+
+    # O(1) lookup using index
+    if version_id in index:
+        byte_offset = index[version_id]
+        with open(CORPUS_PATH, 'r', encoding='utf-8') as f:
+            f.seek(byte_offset)
+            line = f.readline()
+            record = json.loads(line)
+            return record.get('text', '')
+
+    # Fallback: linear scan (slow, but works without index)
+    # This path should rarely be taken once index is built
+    print(f"  WARNING: {version_id} not in index, using linear scan...")
+    with open(CORPUS_PATH, 'r', encoding='utf-8') as f:
         for line in f:
             record = json.loads(line)
             if record.get('version_id') == version_id:

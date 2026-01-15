@@ -194,13 +194,54 @@ describe('LegislationRepository', () => {
       const page2 = repo.listLegislation({ limit: 2, offset: 2 });
       expect(page2).toHaveLength(1);
     });
+
+    it('should filter by date range (dateFrom)', () => {
+      const results = repo.listLegislation({ dateFrom: '2021-01-01' });
+      expect(results).toHaveLength(2); // vic-act-1 (2021-06-15) and cth-act-1 (2022-07-01)
+    });
+
+    it('should filter by date range (dateTo)', () => {
+      const results = repo.listLegislation({ dateTo: '2021-01-01' });
+      expect(results).toHaveLength(1); // nsw-act-1 (2020-01-01)
+      expect(results[0].id).toBe('nsw-act-1');
+    });
+
+    it('should filter by date range (both dateFrom and dateTo)', () => {
+      const results = repo.listLegislation({ dateFrom: '2020-06-01', dateTo: '2022-01-01' });
+      expect(results).toHaveLength(1); // vic-act-1 (2021-06-15)
+      expect(results[0].id).toBe('vic-act-1');
+    });
+
+    it('should combine date range with other filters', () => {
+      const results = repo.listLegislation({
+        dateFrom: '2020-01-01',
+        dateTo: '2022-12-31',
+        status: 'complete',
+      });
+      expect(results).toHaveLength(2); // nsw-act-1 and cth-act-1 (both complete)
+    });
   });
 
   describe('countLegislation', () => {
     beforeEach(() => {
-      repo.upsertLegislation({ id: 'act-1', title: 'Act 1', jurisdiction: 'new_south_wales' });
-      repo.upsertLegislation({ id: 'act-2', title: 'Act 2', jurisdiction: 'new_south_wales' });
-      repo.upsertLegislation({ id: 'act-3', title: 'Act 3', jurisdiction: 'queensland' });
+      repo.upsertLegislation({
+        id: 'act-1',
+        title: 'Act 1',
+        jurisdiction: 'new_south_wales',
+        dateEnacted: '2020-01-01',
+      });
+      repo.upsertLegislation({
+        id: 'act-2',
+        title: 'Act 2',
+        jurisdiction: 'new_south_wales',
+        dateEnacted: '2021-06-15',
+      });
+      repo.upsertLegislation({
+        id: 'act-3',
+        title: 'Act 3',
+        jurisdiction: 'queensland',
+        dateEnacted: '2022-12-01',
+      });
     });
 
     it('should count all legislation', () => {
@@ -210,6 +251,12 @@ describe('LegislationRepository', () => {
     it('should count with filters', () => {
       expect(repo.countLegislation({ jurisdiction: 'new_south_wales' })).toBe(2);
       expect(repo.countLegislation({ jurisdiction: 'queensland' })).toBe(1);
+    });
+
+    it('should count with date range filter', () => {
+      expect(repo.countLegislation({ dateFrom: '2021-01-01' })).toBe(2);
+      expect(repo.countLegislation({ dateTo: '2021-01-01' })).toBe(1);
+      expect(repo.countLegislation({ dateFrom: '2021-01-01', dateTo: '2022-01-01' })).toBe(1);
     });
   });
 
