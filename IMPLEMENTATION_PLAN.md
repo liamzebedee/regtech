@@ -233,9 +233,9 @@ src/lib/           # Shared utilities (cost formatting, types, db access)
 **STATUS: ACTIVE - REQUIRES IMMEDIATE ACTION**
 
 **Current Progress:**
-- Analyzed: 502 (1.23%)
-- Pending: 40,252 (98.77%)
-- Failed: 1
+- Analyzed: 603 (1.48%)
+- Pending: 40,150 (98.52%)
+- Failed: 2
 - Target: 40,755 (100%)
 
 ### Instructions
