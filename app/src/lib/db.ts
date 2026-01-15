@@ -14,11 +14,18 @@ let db: Database.Database | null = null;
 /**
  * Get or create database connection.
  * Database file is located at data/legislation.db relative to project root.
+ *
+ * WHY using process.cwd(): __dirname doesn't work reliably in Next.js RSC.
+ * process.cwd() returns the project root when running from /app directory.
  */
 export function getDatabase(): Database.Database {
   if (!db) {
-    // Navigate from app/src/lib to project root/data
-    const dbPath = path.resolve(__dirname, "../../../../data/legislation.db");
+    // Support DATABASE_PATH env var for flexibility, otherwise use relative path
+    // When running from /app, cwd is /app, so we go up one level to project root
+    const projectRoot = process.cwd().endsWith("/app")
+      ? path.resolve(process.cwd(), "..")
+      : process.cwd();
+    const dbPath = process.env.DATABASE_PATH || path.join(projectRoot, "data", "legislation.db");
     db = new Database(dbPath, { readonly: true });
     // Enable WAL mode for better concurrent reads
     db.pragma("journal_mode = WAL");
