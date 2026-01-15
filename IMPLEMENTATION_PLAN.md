@@ -221,9 +221,48 @@ src/lib/           # Shared utilities (cost formatting, types, db access)
 
 ### 5.1 End-to-End Flow
 - [x] Verify: corpus -> analysis -> database -> website pipeline
-- [ ] Run analysis on subset (100 documents) - requires Claude CLI
 - [x] Test website with real data
 - [x] Performance testing (index load < 2s) - actual: < 0.1s
+
+---
+
+## Priority 6: Run Mass LLM Analysis ← CURRENT FOCUS
+
+### ⚠️ THIS IS THE ONLY TASK. DO NOTHING ELSE.
+
+**STATUS: ACTIVE - REQUIRES IMMEDIATE ACTION**
+
+**Current Progress:**
+- Analyzed: 27 (0.07%)
+- Pending: 40,728 (99.93%)
+- Target: 40,755 (100%)
+
+### Instructions
+
+1. **DO NOT** read specs, explore code, or implement features
+2. **DO NOT** refactor, add tests, or improve documentation
+3. **JUST RUN** the analysis pipeline
+
+```bash
+python analysis/scripts/analyze_legislation.py --workers 4 --limit 50000
+```
+
+Note: The script has a default --limit of 10. Always specify --limit when running mass analysis.
+
+4. **MONITOR** the output. If you see errors, fix them and re-run
+5. **DO NOT STOP** until all 40,740 pending documents are analyzed
+6. After every ~1000 documents, update this status section with progress
+
+### Error Handling
+
+If the pipeline fails:
+- Check the error message
+- Fix the specific issue (likely in `analysis/scripts/analyze_legislation.py`)
+- Re-run the command with `--retry-failed` if needed: `python analysis/scripts/analyze_legislation.py --workers 4 --retry-failed`
+
+### Why This Matters
+
+The entire application is useless without data. 40,740 documents must be analyzed before any other work has value. Speed is critical.
 
 ### 5.2 Documentation
 - [x] Update README with setup instructions
