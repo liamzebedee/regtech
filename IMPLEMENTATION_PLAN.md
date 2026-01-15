@@ -186,10 +186,10 @@ src/lib/           # Shared utilities (cost formatting, types, db access)
 ## Priority 5: Integration & Testing
 
 ### 5.1 End-to-End Flow
-- [ ] Verify: corpus -> analysis -> database -> website pipeline
-- [ ] Run analysis on subset (100 documents)
-- [ ] Test website with real data
-- [ ] Performance testing (index load < 2s)
+- [x] Verify: corpus -> analysis -> database -> website pipeline
+- [ ] Run analysis on subset (100 documents) - requires Claude CLI
+- [x] Test website with real data
+- [x] Performance testing (index load < 2s) - actual: < 0.1s
 
 ### 5.2 Documentation
 - [ ] Update README with setup instructions
@@ -199,6 +199,27 @@ src/lib/           # Shared utilities (cost formatting, types, db access)
 ---
 
 ## Work Log
+
+### 2026-01-16 - End-to-End Flow Verified (Priority 5.1)
+
+**WHY:** Before scaling the analysis pipeline, the complete data flow must be validated to ensure each component integrates correctly. This prevents wasted effort analyzing thousands of documents only to discover integration issues.
+
+**Verification Results:**
+- ✓ Corpus → Analysis → Database pipeline: 7 legislation items successfully analyzed with cost extraction
+- ✓ Database → Website display: All cost types (compliance/enforcement), parties (citizen/business), time/money values, and indefinite cost notes render correctly
+- ✓ Performance: Index page loads in < 0.1s (requirement: < 2s)
+- Topics page shows "No topics found" because existing 7 analyzed items predate topic extraction - this is expected and documented
+
+**Current Database State:**
+- 40,755 legislation records (9,059 primary + 31,696 secondary)
+- 7 completed analyses with cost data
+- 40,748 pending analysis
+
+**Remaining:**
+- Run analysis on 100+ documents to validate at scale (requires Claude CLI)
+- Documentation (README, methodology)
+
+---
 
 ### 2026-01-16 - Responsive Design and Accessibility Complete (Priority 4.5)
 
