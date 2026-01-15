@@ -1,0 +1,30 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+
+# Large data files (corpus is ~9GB)
+data/corpus/
+
+# SQLite database files
+data/*.db
+data/*.db-wal
+data/*.db-shm
+
+# Keep the data directory structure
+!data/.gitkeep
+
+# Test artifacts
+coverage/
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
