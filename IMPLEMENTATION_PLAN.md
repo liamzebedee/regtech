@@ -89,7 +89,20 @@ src/lib/           # Shared utilities (cost formatting, types, db access)
   - Added date range filtering (dateFrom, dateTo) to listLegislation and countLegislation methods, with 5 new tests
 - [x] Create chunking strategy for parallel processing
   - Created corpus byte-offset index for O(1) lookups (analysis/scripts/build_corpus_index.py). Index maps version_id -> byte offset, enabling direct seek instead of linear scan. Index size: 2.4MB for 43,344 legislation records.
-- [ ] Handle edge cases: malformed text, encoding issues, duplicates
+- [x] Handle edge cases: malformed text, encoding issues, duplicates
+  - **Investigation findings** (corpus analysis of 232,560 records):
+    - Malformed JSON: 0 (corpus is clean)
+    - Empty text: 0
+    - Short text (<100 chars): 3 (valid legislation)
+    - Encoding issues: 2 documents with 3 total replacement characters
+    - Duplicate version_ids: 0
+    - Duplicate citations: 72 (expected - different versions of same act)
+  - **Implemented cleanup_text() function**:
+    - Removes Unicode replacement characters (\ufffd)
+    - Normalizes line endings
+    - Removes null bytes
+    - Collapses excessive whitespace
+    - Skips documents with <50 chars after cleanup
 
 ---
 
@@ -206,6 +219,29 @@ src/lib/           # Shared utilities (cost formatting, types, db access)
 ---
 
 ## Work Log
+
+### 2026-01-16 - Edge Case Handling Complete (Priority 2.2)
+
+**WHY:** Before running large-scale analysis on 40,000+ documents, edge cases need to be handled to prevent failures and ensure data quality.
+
+**Investigation Results (232,560 corpus records):**
+- Malformed JSON: 0 (corpus is clean)
+- Empty text: 0
+- Short text (<100 chars): 3 (valid legislation)
+- Encoding issues: 2 documents with 3 total replacement characters
+- Duplicate version_ids: 0
+- Duplicate citations: 72 (expected - different versions of same act)
+
+**Changes:**
+- Added `cleanup_text()` function to `analysis/scripts/analyze_legislation.py`
+- Removes Unicode replacement characters, normalizes line endings, removes null bytes
+- Skips documents with <50 chars after cleanup
+- Integrated cleanup into both worker and sequential processing paths
+
+**Files Modified:**
+- `analysis/scripts/analyze_legislation.py` - added cleanup_text() and integration
+
+---
 
 ### 2026-01-16 - Analysis Pipeline Parallelization Complete (Priority 3.2)
 

@@ -275,6 +275,53 @@ def truncate_text(text: str, max_chars: int = MAX_TEXT_CHARS) -> tuple[str, bool
     return truncated + "\n\n[TEXT TRUNCATED - Original length: {:,} characters]".format(len(text)), True
 
 
+def cleanup_text(text: str) -> tuple[str, list[str]]:
+    """
+    Clean up text to handle encoding issues and other edge cases.
+
+    WHY: The corpus contains a small number of documents with encoding issues
+    (replacement characters from bad source encoding). These can confuse Claude
+    or cause output issues. Cleaning the text ensures consistent analysis.
+
+    Returns:
+        (cleaned_text, warnings_list)
+    """
+    warnings = []
+    original_len = len(text)
+
+    # Remove Unicode replacement characters (encoding artifacts)
+    # These appear when the source had invalid UTF-8 sequences
+    if '\ufffd' in text:
+        count = text.count('\ufffd')
+        text = text.replace('\ufffd', '')
+        warnings.append(f"Removed {count} encoding replacement character(s)")
+
+    # Normalize line endings to \n
+    if '\r\n' in text:
+        text = text.replace('\r\n', '\n')
+    if '\r' in text:
+        text = text.replace('\r', '\n')
+
+    # Remove null bytes (rare but can occur in corrupted data)
+    if '\x00' in text:
+        count = text.count('\x00')
+        text = text.replace('\x00', '')
+        warnings.append(f"Removed {count} null byte(s)")
+
+    # Collapse excessive whitespace (more than 3 consecutive newlines)
+    while '\n\n\n\n' in text:
+        text = text.replace('\n\n\n\n', '\n\n\n')
+
+    # Strip leading/trailing whitespace
+    text = text.strip()
+
+    # Warn if text is very short (might be empty after cleanup)
+    if len(text) < 100:
+        warnings.append(f"Very short text ({len(text)} chars)")
+
+    return text, warnings
+
+
 def call_claude(legislation_text: str, citation: str, prompt_template: str) -> dict:
     """
     Call Claude CLI to analyze legislation.
@@ -481,6 +528,22 @@ def worker_process_item(leg: dict) -> dict:
         if not text:
             result['error'] = "Could not find text in corpus"
             # Mark as failed
+            _worker_conn.execute(
+                "UPDATE legislation SET analysis_status = 'failed' WHERE id = ?",
+                (leg['id'],)
+            )
+            _worker_conn.commit()
+            print(f"[Worker {pid}]   ERROR: {result['error']}")
+            return result
+
+        # Clean up text (encoding issues, normalization)
+        text, cleanup_warnings = cleanup_text(text)
+        for warn in cleanup_warnings:
+            print(f"[Worker {pid}]   WARNING: {warn}")
+
+        # Skip if text is too short after cleanup
+        if len(text) < 50:
+            result['error'] = f"Text too short after cleanup ({len(text)} chars)"
             _worker_conn.execute(
                 "UPDATE legislation SET analysis_status = 'failed' WHERE id = ?",
                 (leg['id'],)
@@ -761,6 +824,22 @@ def main():
                 text = get_legislation_text(leg['id'])
                 if not text:
                     print(f"  ERROR: Could not find text in corpus")
+                    conn.execute(
+                        "UPDATE legislation SET analysis_status = 'failed' WHERE id = ?",
+                        (leg['id'],)
+                    )
+                    conn.commit()
+                    errors += 1
+                    continue
+
+                # Clean up text (encoding issues, normalization)
+                text, cleanup_warnings = cleanup_text(text)
+                for warn in cleanup_warnings:
+                    print(f"  WARNING: {warn}")
+
+                # Skip if text is too short after cleanup
+                if len(text) < 50:
+                    print(f"  ERROR: Text too short after cleanup ({len(text)} chars)")
                     conn.execute(
                         "UPDATE legislation SET analysis_status = 'failed' WHERE id = ?",
                         (leg['id'],)
