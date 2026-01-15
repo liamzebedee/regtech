@@ -79,7 +79,12 @@ src/lib/           # Shared utilities (cost formatting, types, db access)
 - [x] All 24 database tests passing
 
 ### 2.2 Corpus Indexing
-- [ ] Build script to scan corpus and populate `legislation` table with metadata
+- [x] Build script to scan corpus and populate `legislation` table with metadata
+  - Created `analysis/scripts/index_corpus.py` to scan corpus and populate `legislation` table
+  - Successfully indexed 40,755 legislation documents (9,059 primary + 31,696 secondary)
+  - Implemented filtering to exclude court decisions (not relevant for cost analysis)
+  - Records span from 1830 to 2025
+  - All records have analysis_status='pending' ready for pipeline
 - [ ] Implement retrieval by identifier (act name, jurisdiction, date)
 - [ ] Create chunking strategy for parallel processing (e.g., by jurisdiction, by year)
 - [ ] Handle edge cases: malformed text, encoding issues, duplicates
@@ -180,6 +185,28 @@ src/lib/           # Shared utilities (cost formatting, types, db access)
 ---
 
 ## Work Log
+
+### 2026-01-15 - Corpus Indexing Complete
+
+**Priority 2.2 - Corpus Indexing:**
+- Created `analysis/scripts/index_corpus.py` to scan corpus and populate `legislation` table
+- Successfully indexed 40,755 legislation documents (9,059 primary + 31,696 secondary)
+- Implemented filtering to exclude court decisions (not relevant for cost analysis)
+- Records span from 1830 to 2025
+- All records have analysis_status='pending' ready for pipeline
+
+**Database now contains:**
+- 32,143 commonwealth (79%)
+- 2,552 tasmania
+- 2,216 new_south_wales
+- 1,564 western_australia
+- 1,067 south_australia
+- 1,000 queensland
+- 213 norfolk_island
+
+**Next priority:** Priority 3 - Analysis Pipeline (need to design Claude prompts for cost extraction)
+
+---
 
 ### 2026-01-15 (continued)
 
