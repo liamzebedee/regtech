@@ -143,7 +143,16 @@ src/lib/           # Shared utilities (cost formatting, types, db access)
 - [ ] Handle long documents (chunking/summarization strategy)
 - [ ] Handle documents referencing other legislation
 - [x] Validate Claude outputs for consistency
-- [ ] Create test suite with known-cost legislation
+- [x] Create test suite with known-cost legislation
+  - Created `analysis/tests/test_cases.json` with 6 test cases:
+    - Proclamations (no costs expected)
+    - Defence Legislation Amendment (compliance + enforcement costs)
+    - Employment Agents Registration Act (business compliance)
+    - Human Reproductive Technology regulations (licensing)
+  - Created `analysis/tests/validate_analysis.py` validation script:
+    - Validates analysis output against expected outcomes
+    - Checks compliance costs, enforcement costs, parties, indefinite costs
+    - Usage: `python analysis/tests/validate_analysis.py [--run-analysis] [--verbose]`
 
 ---
 
@@ -219,6 +228,33 @@ src/lib/           # Shared utilities (cost formatting, types, db access)
 ---
 
 ## Work Log
+
+### 2026-01-16 - Test Suite for Known-Cost Legislation (Priority 3.3)
+
+**WHY:** Without ground truth validation, we can't measure analysis quality. The test suite provides known-cost legislation examples to validate the pipeline produces accurate results.
+
+**Changes:**
+- Created `analysis/tests/test_cases.json` with 6 test cases:
+  - 2 proclamations (expected: no costs)
+  - Defence Legislation Amendment (expected: business + citizen compliance, enforcement)
+  - Local Government Order (expected: enforcement)
+  - Employment Agents Registration Act (expected: business compliance)
+  - Human Reproductive Technology regulations (expected: business compliance)
+- Created `analysis/tests/validate_analysis.py` validation script
+  - Validates has_compliance_costs, has_enforcement_costs
+  - Validates min/max cost counts, expected parties
+  - Validates indefinite cost flags
+  - Usage: `python analysis/tests/validate_analysis.py [--run-analysis] [--verbose]`
+
+**Test Results (on existing data):**
+- 3/6 passing (analyzed legislation matches expectations)
+- 3/6 pending (need Claude CLI to analyze)
+
+**Files Created:**
+- `analysis/tests/test_cases.json`
+- `analysis/tests/validate_analysis.py`
+
+---
 
 ### 2026-01-16 - Edge Case Handling Complete (Priority 2.2)
 

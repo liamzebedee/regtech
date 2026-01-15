@@ -1,0 +1,67 @@
+{
+  "_description": "Test cases for validating cost analysis quality. Each case specifies legislation and expected analysis outcomes.",
+  "_why": "Known-cost legislation provides ground truth for validating the analysis pipeline produces reasonable results.",
+  "test_cases": [
+    {
+      "id": "tasmanian_legislation:2008-10-08/sr-2008-119",
+      "name": "Proclamation (ceremonial, no costs)",
+      "description": "Proclamations are purely declarative and should have no compliance costs",
+      "expected": {
+        "has_compliance_costs": false,
+        "has_enforcement_costs": false,
+        "min_compliance_costs": 0,
+        "max_compliance_costs": 0
+      }
+    },
+    {
+      "id": "tasmanian_legislation:2002-03-27/sr-2002-017",
+      "name": "Proclamation under the Police Offences Act",
+      "description": "Another proclamation - should have no compliance costs",
+      "expected": {
+        "has_compliance_costs": false,
+        "has_enforcement_costs": false,
+        "min_compliance_costs": 0,
+        "max_compliance_costs": 0
+      }
+    },
+    {
+      "id": "federal_register_of_legislation:C2014A00095",
+      "name": "Defence Legislation Amendment (Woomera)",
+      "description": "Creates permit requirements for accessing prohibited areas - should have compliance costs for businesses and citizens",
+      "expected": {
+        "has_compliance_costs": true,
+        "has_enforcement_costs": true,
+        "min_compliance_costs": 2,
+        "max_compliance_costs": 10,
+        "expected_parties": ["business", "citizen"],
+        "should_have_indefinite": true
+      }
+    },
+    {
+      "id": "tasmanian_legislation:2004-10-06/sr-2004-080",
+      "name": "Local Government Order 2004",
+      "description": "Administrative order for land transfers - minimal compliance costs, some enforcement",
+      "expected": {
+        "has_enforcement_costs": true
+      }
+    },
+    {
+      "id": "south_australian_legislation:2019-12-02/1993.69.un",
+      "name": "Employment Agents Registration Act 1993",
+      "description": "Requires business registration - should have compliance costs for businesses",
+      "expected": {
+        "has_compliance_costs": true,
+        "expected_parties": ["business"]
+      }
+    },
+    {
+      "id": "western_australian_legislation:mrdoc_47377/law_s4516",
+      "name": "Human Reproductive Technology Licences and Registers Regulations",
+      "description": "Licensing and registration requirements for healthcare facilities",
+      "expected": {
+        "has_compliance_costs": true,
+        "expected_parties": ["business"]
+      }
+    }
+  ]
+}

@@ -22,6 +22,7 @@ npm start         # Start production server
 python analysis/scripts/index_corpus.py    # Index corpus into database
 python analysis/scripts/analyze_legislation.py --limit 10  # Analyze legislation (single worker)
 python analysis/scripts/analyze_legislation.py --limit 100 --workers 4  # Parallel analysis
+python analysis/tests/validate_analysis.py --verbose  # Validate analysis quality
 ```
 
 ## Database Location
