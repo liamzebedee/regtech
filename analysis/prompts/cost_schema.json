@@ -1,0 +1,141 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Cost Analysis Result",
+  "description": "Schema for Claude's cost extraction output",
+  "type": "object",
+  "required": ["legislation_summary", "has_compliance_costs", "compliance_costs", "has_enforcement_costs", "confidence"],
+  "properties": {
+    "legislation_summary": {
+      "type": "string",
+      "description": "One paragraph describing what this legislation does"
+    },
+    "has_compliance_costs": {
+      "type": "boolean",
+      "description": "Whether this legislation imposes any compliance costs"
+    },
+    "compliance_costs": {
+      "type": "array",
+      "description": "List of compliance costs by party",
+      "items": {
+        "type": "object",
+        "required": ["party", "description", "frequency", "is_indefinite"],
+        "properties": {
+          "party": {
+            "type": "string",
+            "enum": ["citizen", "business", "small_business", "large_business", "government", "nonprofit"]
+          },
+          "description": {
+            "type": "string",
+            "description": "What the party must do to comply"
+          },
+          "time": {
+            "oneOf": [
+              { "type": "null" },
+              {
+                "type": "object",
+                "required": ["amount", "unit"],
+                "properties": {
+                  "amount": { "type": "number", "minimum": 0 },
+                  "unit": { "type": "string", "enum": ["minutes", "hours", "days", "weeks", "months", "years"] },
+                  "notes": { "type": "string" }
+                }
+              }
+            ]
+          },
+          "money": {
+            "oneOf": [
+              { "type": "null" },
+              {
+                "type": "object",
+                "required": ["amount_aud"],
+                "properties": {
+                  "amount_aud": { "type": "number", "minimum": 0 },
+                  "notes": { "type": "string" }
+                }
+              }
+            ]
+          },
+          "frequency": {
+            "type": "string",
+            "enum": ["one_time", "per_transaction", "daily", "weekly", "monthly", "quarterly", "annually", "as_needed"]
+          },
+          "is_indefinite": {
+            "type": "boolean"
+          },
+          "indefinite_notes": {
+            "oneOf": [
+              { "type": "null" },
+              { "type": "string" }
+            ]
+          }
+        }
+      }
+    },
+    "has_enforcement_costs": {
+      "type": "boolean",
+      "description": "Whether this legislation imposes enforcement costs on the state"
+    },
+    "enforcement_cost": {
+      "oneOf": [
+        { "type": "null" },
+        {
+          "type": "object",
+          "required": ["description", "frequency", "is_indefinite"],
+          "properties": {
+            "description": { "type": "string" },
+            "time": {
+              "oneOf": [
+                { "type": "null" },
+                {
+                  "type": "object",
+                  "required": ["amount", "unit"],
+                  "properties": {
+                    "amount": { "type": "number", "minimum": 0 },
+                    "unit": { "type": "string", "enum": ["minutes", "hours", "days", "weeks", "months", "years"] },
+                    "notes": { "type": "string" }
+                  }
+                }
+              ]
+            },
+            "money": {
+              "oneOf": [
+                { "type": "null" },
+                {
+                  "type": "object",
+                  "required": ["amount_aud"],
+                  "properties": {
+                    "amount_aud": { "type": "number", "minimum": 0 },
+                    "notes": { "type": "string" }
+                  }
+                }
+              ]
+            },
+            "frequency": {
+              "type": "string",
+              "enum": ["one_time", "per_transaction", "daily", "weekly", "monthly", "quarterly", "annually", "as_needed"]
+            },
+            "is_indefinite": { "type": "boolean" },
+            "indefinite_notes": {
+              "oneOf": [
+                { "type": "null" },
+                { "type": "string" }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "analysis_notes": {
+      "oneOf": [
+        { "type": "null" },
+        { "type": "string" }
+      ],
+      "description": "Any important caveats about this analysis"
+    },
+    "confidence": {
+      "type": "string",
+      "enum": ["high", "medium", "low"],
+      "description": "Confidence level in the analysis"
+    }
+  }
+}

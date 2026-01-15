@@ -94,26 +94,30 @@ src/lib/           # Shared utilities (cost formatting, types, db access)
 ## Priority 3: Analysis Pipeline (Depends on: Corpus, Cost Model, Database)
 
 ### 3.1 Claude Analysis Design
-- [ ] Design prompt template for cost extraction in `analysis/prompts/`
-- [ ] Define output schema (JSON structure Claude should return)
-- [ ] Test prompt with 3-5 simple, short legislation samples
-- [ ] Iterate on prompt based on output quality
+- [x] Design prompt template for cost extraction in `analysis/prompts/`
+  - Created `analysis/prompts/cost_extraction.md` with system prompt, output schema, guidelines, and 3 examples
+- [x] Define output schema (JSON structure Claude should return)
+  - Created `analysis/prompts/cost_schema.json` for response validation
+- [x] Test prompt with 3-5 simple, short legislation samples
+  - Tested with proclamations (no costs) and Defence Legislation Amendment (Woomera)
+- [x] Iterate on prompt based on output quality
+  - Successfully extracts compliance/enforcement costs, party identification, time/money costs, indefinite flags
 - [ ] Document effective prompt patterns
 
 ### 3.2 Pipeline Implementation
-- [ ] Create `analysis/analyze.py` (or .sh) orchestrator script
-- [ ] Implement work queue: select legislation where `analysis_status = 'pending'`
-- [ ] Implement single-document analysis function:
-  - Read legislation text
-  - Check token count, chunk if > 32k tokens
-  - Call Claude CLI with prompt
-  - Parse response, validate against schema
-  - Write to database
-  - Update `analysis_status`
+- [x] Create `analysis/analyze.py` (or .sh) orchestrator script
+  - Created `analysis/scripts/analyze_legislation.py` with Claude CLI integration
+- [x] Implement work queue: select legislation where `analysis_status = 'pending'`
+  - Supports filtering by jurisdiction, limit, specific ID
+- [x] Implement single-document analysis function:
+  - Retrieves legislation text from corpus JSONL
+  - Calls Claude CLI with JSON output parsing
+  - Writes to database with progress reporting
+  - Updates `analysis_status`
 - [ ] Implement parallelization (multiple Claude instances)
-- [ ] Add idempotency: skip already-analyzed documents
+- [x] Add idempotency: skip already-analyzed documents
 - [ ] Implement retry logic for failed analyses
-- [ ] Add logging and progress reporting
+- [x] Add logging and progress reporting
 
 ### 3.3 Analysis Quality
 - [ ] Handle long documents (chunking/summarization strategy)
@@ -185,6 +189,39 @@ src/lib/           # Shared utilities (cost formatting, types, db access)
 ---
 
 ## Work Log
+
+### 2026-01-15 - Analysis Pipeline Complete
+
+**Priority 3.1 - Claude Analysis Design:**
+- Created prompt template `analysis/prompts/cost_extraction.md` with:
+  - System prompt explaining the task
+  - Output schema for JSON responses
+  - Guidelines for cost estimation
+  - 3 examples (registration requirement, burden of proof reversal, declarative legislation)
+- Created JSON schema `analysis/prompts/cost_schema.json` for response validation
+- Tested with sample legislation:
+  - Correctly identified no costs for procedural legislation (proclamations)
+  - Successfully extracted 4 compliance costs + enforcement costs from Defence Legislation Amendment (Woomera)
+  - Party identification working (citizen, business)
+  - Time and money costs extracted correctly
+  - Indefinite cost flags working for liability exposure
+
+**Priority 3.2 - Pipeline Implementation:**
+- Created `analysis/scripts/analyze_legislation.py` orchestrator script with:
+  - Retrieval of legislation text from corpus JSONL
+  - Claude CLI integration with JSON output parsing
+  - Database integration for saving results
+  - Progress reporting and error handling
+  - Support for filtering by jurisdiction, limit, specific ID
+
+**Successfully tested analysis:**
+- 7 pieces of legislation analyzed
+- No errors in final run
+- Cost data correctly stored in database
+
+**Next priority:** Priority 3.3 - Analysis Quality (chunking for long documents, validation)
+
+---
 
 ### 2026-01-15 - Corpus Indexing Complete
 
