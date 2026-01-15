@@ -1,6 +1,7 @@
 import { getDatabase, LegislationRow, CostRow } from "@/lib/db";
 import { notFound } from "next/navigation";
 import Link from "next/link";
+import ExpandableText from "@/components/ExpandableText";
 
 interface LegislationWithCosts {
   legislation: LegislationRow;
@@ -249,14 +250,16 @@ export default async function LegislationPage({
         )}
       </section>
 
-      {/* Text Excerpt */}
+      {/* Legislation Text */}
       {legislation.text_excerpt && (
         <section className="mb-8">
-          <h2 className="text-xl font-semibold mb-4">Text Excerpt</h2>
+          <h2 className="text-xl font-semibold mb-4">Legislation Text</h2>
           <div className="p-4 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg">
-            <pre className="whitespace-pre-wrap font-mono text-sm text-gray-700 dark:text-gray-300">
-              {legislation.text_excerpt}
-            </pre>
+            <ExpandableText
+              text={legislation.text_excerpt}
+              previewLines={30}
+              sourceUrl={legislation.source_url}
+            />
           </div>
         </section>
       )}

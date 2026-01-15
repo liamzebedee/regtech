@@ -168,7 +168,7 @@ src/lib/           # Shared utilities (cost formatting, types, db access)
   - Assumed time value calculation shown
 - [x] Display enforcement costs similarly
 - [x] Show indefinite cost notes where applicable
-- [ ] Add "view full text" expandable section
+- [x] Add "view full text" expandable section
 
 ### 4.4 Topic/Cluster Pages
 - [x] Create `/topics` index page
@@ -199,6 +199,20 @@ src/lib/           # Shared utilities (cost formatting, types, db access)
 ---
 
 ## Work Log
+
+### 2026-01-15 - Expandable Text Section Added
+
+**WHY:** Legislation text can be thousands of lines long. Showing full text on page load would hurt performance and user experience. An expandable section shows a preview first and expands on demand.
+
+**Changes:**
+- Created `app/src/components/ExpandableText.tsx` client component
+- Updated legislation detail page to use ExpandableText
+- Shows first 30 lines with gradient fade, "Show all X lines" button
+- Includes link to official source for full canonical text
+
+**Also fixed:** Database path resolution for Next.js RSC environment - switched from `__dirname` to `process.cwd()` based detection.
+
+---
 
 ### 2026-01-15 - Topic/Cluster Pages Complete (Priority 4.4)
 
