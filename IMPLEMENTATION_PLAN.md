@@ -140,7 +140,7 @@ src/lib/           # Shared utilities (cost formatting, types, db access)
 - [x] Add logging and progress reporting
 
 ### 3.3 Analysis Quality
-- [ ] Handle long documents (chunking/summarization strategy)
+- [x] Handle long documents (chunking/summarization strategy)
 - [ ] Handle documents referencing other legislation
 - [x] Validate Claude outputs for consistency
 - [x] Create test suite with known-cost legislation
@@ -232,6 +232,43 @@ src/lib/           # Shared utilities (cost formatting, types, db access)
 ---
 
 ## Work Log
+### 2026-01-16 - Long Document Handling Strategy Complete (Priority 3.3)
+
+**WHY:** 12.4% of legislation documents (619 out of 5000 sampled) exceed the 100k character context limit, with some documents reaching 5+ million characters. Simple truncation loses important content - fee schedules and penalty provisions often appear in later sections that get truncated. This implementation enables intelligent analysis of these long documents.
+
+**Changes:**
+- Created `analysis/scripts/document_chunking.py` - Core module for parsing legislation structure, scoring sections for cost-relevance, and handling multi-pass analysis
+- Created `analysis/scripts/analyze_long_documents.py` - Integration module that extends the analysis pipeline with chunking support
+- Created `analysis/scripts/migrations/001_add_analysis_metadata.sql` - Database migration adding document_length, analysis_coverage, analysis_chunks, was_truncated columns
+- Created `analysis/docs/long_document_strategy.md` - Comprehensive documentation of the strategy
+- Updated `src/lib/db/schema.ts` - Added TypeScript interfaces for new metadata fields
+- Applied database migration to add new columns to legislation table
+
+**Strategy Overview:**
+- Documents < 100k chars: Direct analysis (no change)
+- Documents 100k-500k chars: Section prioritization with intelligent section extraction
+- Documents > 500k chars: Multi-pass analysis with result merging
+
+**Key Features:**
+- Structure parsing detects Parts, Divisions, Sections, Schedules using Australian legislation patterns
+- Section scoring based on cost-relevance keywords (fee, penalty, charge, licence) and structural indicators ($amounts, penalty units)
+- Smart context assembly prioritizes high-scoring sections within context budget
+- Multi-pass analysis with deduplication and result merging for very long documents
+- Database tracking of coverage and completeness for quality monitoring
+
+**Files Created:**
+- `analysis/scripts/document_chunking.py`
+- `analysis/scripts/analyze_long_documents.py`
+- `analysis/scripts/migrations/001_add_analysis_metadata.sql`
+- `analysis/docs/long_document_strategy.md`
+
+**Files Modified:**
+- `src/lib/db/schema.ts`
+
+**Build Status:** All 52 tests passing, Next.js build successful
+
+---
+
 
 ### 2026-01-16 - Test Suite for Known-Cost Legislation (Priority 3.3)
 

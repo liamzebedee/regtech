@@ -103,6 +103,11 @@ export interface LegislationRow {
   analysis_status: AnalysisStatus;
   created_at: string;
   updated_at: string;
+  // Analysis metadata (added for long document handling)
+  document_length: number | null;        // Original document length in characters
+  analysis_coverage: number | null;      // Portion of cost-relevant content analyzed (0.0-1.0)
+  analysis_chunks: number | null;        // Number of chunks used for analysis
+  was_truncated: number | null;          // 1 if document was truncated, 0 otherwise
 }
 
 /**
@@ -141,6 +146,11 @@ export interface LegislationInput {
   textExcerpt?: string;
   topics?: string[];
   analysisStatus?: AnalysisStatus;
+  // Analysis metadata (for long document handling)
+  documentLength?: number;
+  analysisCoverage?: number;
+  analysisChunks?: number;
+  wasTruncated?: boolean;
 }
 
 /**
