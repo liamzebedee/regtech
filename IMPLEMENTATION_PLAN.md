@@ -178,8 +178,8 @@ src/lib/           # Shared utilities (cost formatting, types, db access)
 ### 4.5 Polish
 - [ ] Responsive design (mobile-friendly)
 - [ ] Accessibility audit (keyboard nav, screen readers)
-- [ ] Loading states
-- [ ] Error boundaries
+- [x] Loading states
+- [x] Error boundaries
 
 ---
 
@@ -199,6 +199,21 @@ src/lib/           # Shared utilities (cost formatting, types, db access)
 ---
 
 ## Work Log
+
+### 2026-01-15 - Loading States and Error Boundaries Added (Priority 4.5)
+
+**WHY:** Production apps need graceful error handling and loading feedback. Without these, errors crash the entire page and users see blank screens during loads.
+
+**Changes:**
+- Created `app/src/app/error.tsx` - global error boundary with retry button and dev-only stack trace
+- Created `app/src/app/loading.tsx` - loading spinner shown during server component loading
+
+**Features:**
+- Error boundary catches React errors, shows user-friendly message
+- Retry button allows recovery without page refresh
+- Loading state provides immediate visual feedback during navigation
+
+---
 
 ### 2026-01-15 - Expandable Text Section Added
 
