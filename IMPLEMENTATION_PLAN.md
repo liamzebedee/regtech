@@ -171,9 +171,9 @@ src/lib/           # Shared utilities (cost formatting, types, db access)
 - [ ] Add "view full text" expandable section
 
 ### 4.4 Topic/Cluster Pages
-- [ ] Create `/topics` index page
-- [ ] Create `/topics/[topic]` page with filtered legislation
-- [ ] Implement topic aggregation (total cost by topic)
+- [x] Create `/topics` index page
+- [x] Create `/topics/[topic]` page with filtered legislation
+- [x] Implement topic aggregation (total cost by topic)
 
 ### 4.5 Polish
 - [ ] Responsive design (mobile-friendly)
@@ -199,6 +199,30 @@ src/lib/           # Shared utilities (cost formatting, types, db access)
 ---
 
 ## Work Log
+
+### 2026-01-15 - Topic/Cluster Pages Complete (Priority 4.4)
+
+**WHY:** The website spec requires browsing legislation by topic. Topic pages enable users to explore subject areas (e.g., all taxation legislation) and see cumulative costs in that domain.
+
+**Changes:**
+- Created `/topics` index page showing all topics with counts, grouped by category
+- Created `/topics/[topic]` detail page with legislation filtered by topic
+- Implemented topic aggregation: total compliance costs, enforcement costs, and parties affected
+- Added `dynamic = "force-dynamic"` to topic pages since they require database access
+
+**Files Created:**
+- `app/src/app/topics/page.tsx` - Topics index page
+- `app/src/app/topics/[topic]/page.tsx` - Topic detail page
+
+**Features:**
+- Topics grouped into categories (Business, Environment, Social, Safety, Legal, Other)
+- Statistics panel showing legislation count, total costs, parties affected
+- Pagination for topics with many entries
+- Empty state with instructions when no topics exist
+
+**Note:** Topics pages show "No topics found" until legislation is analyzed with the new prompt that extracts topics. Re-run analysis to populate topics.
+
+---
 
 ### 2026-01-15 - Topics Extraction Added to Analysis Pipeline
 
