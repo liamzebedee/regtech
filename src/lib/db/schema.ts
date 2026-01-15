@@ -100,6 +100,7 @@ export interface LegislationRow {
   text_path: string | null;
   text_excerpt: string | null;
   topics: string; // JSON array stored as string
+  referenced_legislation: string; // JSON array of {title, section?, reference_type} objects
   analysis_status: AnalysisStatus;
   created_at: string;
   updated_at: string;
@@ -131,6 +132,19 @@ export interface CostRow {
 }
 
 /**
+ * Type for referenced legislation items.
+ *
+ * WHY: Legislation often references other Acts/Regulations for definitions,
+ * requirements, penalties, or amendments. Tracking these references helps
+ * identify incomplete analyses and build dependency graphs.
+ */
+export interface ReferencedLegislationItem {
+  title: string;
+  section?: string | null;
+  reference_type: 'definition' | 'requirement' | 'amendment' | 'penalty';
+}
+
+/**
  * Input type for inserting/updating legislation (subset of fields).
  */
 export interface LegislationInput {
@@ -145,6 +159,7 @@ export interface LegislationInput {
   textPath?: string;
   textExcerpt?: string;
   topics?: string[];
+  referencedLegislation?: ReferencedLegislationItem[];
   analysisStatus?: AnalysisStatus;
   // Analysis metadata (for long document handling)
   documentLength?: number;

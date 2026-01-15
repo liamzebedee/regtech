@@ -95,6 +95,7 @@ VALID_PARTIES = {'citizen', 'business', 'small_business', 'large_business', 'gov
 VALID_FREQUENCIES = {'one_time', 'per_transaction', 'daily', 'weekly', 'monthly', 'quarterly', 'annually', 'as_needed'}
 VALID_TIME_UNITS = {'minutes', 'hours', 'days', 'weeks', 'months', 'years'}
 VALID_CONFIDENCE = {'high', 'medium', 'low'}
+VALID_REFERENCE_TYPES = {'definition', 'requirement', 'amendment', 'penalty'}
 
 
 def load_schema() -> dict:
@@ -114,7 +115,7 @@ def validate_analysis(analysis: dict) -> list[str]:
 
     # Required top-level fields
     required_fields = ['legislation_summary', 'topics', 'has_compliance_costs',
-                       'compliance_costs', 'has_enforcement_costs', 'confidence']
+                       'compliance_costs', 'has_enforcement_costs', 'referenced_legislation', 'confidence']
     for field in required_fields:
         if field not in analysis:
             errors.append(f"Missing required field: {field}")
@@ -187,6 +188,25 @@ def validate_analysis(analysis: dict) -> list[str]:
             unit = time_data.get('unit')
             if unit and unit not in VALID_TIME_UNITS:
                 errors.append(f"{prefix}.time.unit '{unit}' not in {VALID_TIME_UNITS}")
+
+    # Validate referenced_legislation
+    referenced = analysis.get('referenced_legislation', [])
+    if not isinstance(referenced, list):
+        errors.append("referenced_legislation must be a list")
+    else:
+        for i, ref in enumerate(referenced):
+            prefix = f"referenced_legislation[{i}]"
+
+            # Title is required
+            if not ref.get('title'):
+                errors.append(f"{prefix}.title is required")
+
+            # Reference type is required and must be valid
+            ref_type = ref.get('reference_type')
+            if not ref_type:
+                errors.append(f"{prefix}.reference_type is required")
+            elif ref_type not in VALID_REFERENCE_TYPES:
+                errors.append(f"{prefix}.reference_type '{ref_type}' not in {VALID_REFERENCE_TYPES}")
 
     return errors
 
@@ -460,11 +480,12 @@ def save_analysis_to_db(conn: sqlite3.Connection, legislation_id: str, analysis:
             enforcement.get('description', '') + (f"\n\n{enforcement.get('indefinite_notes', '')}" if enforcement.get('indefinite_notes') else '')
         ))
 
-    # Update legislation analysis status and topics
+    # Update legislation analysis status, topics, and referenced_legislation
     topics = analysis.get('topics', [])
+    referenced_legislation = analysis.get('referenced_legislation', [])
     cursor.execute(
-        "UPDATE legislation SET analysis_status = 'complete', topics = ? WHERE id = ?",
-        (json.dumps(topics), legislation_id)
+        "UPDATE legislation SET analysis_status = 'complete', topics = ?, referenced_legislation = ? WHERE id = ?",
+        (json.dumps(topics), json.dumps(referenced_legislation), legislation_id)
     )
 
     conn.commit()

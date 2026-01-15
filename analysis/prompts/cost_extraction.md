@@ -90,10 +90,32 @@ Return a JSON object with this structure:
     "is_indefinite": false,
     "indefinite_notes": null
   },
+  "referenced_legislation": [
+    {
+      "title": "Name of the referenced Act or Regulation",
+      "section": "Optional specific section reference (e.g., 'Section 4', 'Schedule 1')",
+      "reference_type": "definition|requirement|amendment|penalty"
+    }
+  ],
   "analysis_notes": "Any important caveats about this analysis",
   "confidence": "high|medium|low"
 }
 ```
+
+### 3. External Legislation References
+Identify when this legislation references or depends on other legislation. This helps track dependencies and completeness of analysis.
+
+**Look for:**
+- Direct references: "as defined in the [Act Name]", "under the [Regulation Name]"
+- Penalty definitions: "penalty units as defined in [Act]"
+- Incorporated standards: "must comply with [External Act/Regulation]"
+- Amendments: "amends the [Act Name]"
+- Delegated authority: "as prescribed by regulations under [Act]"
+
+**Record:**
+- The title/name of the referenced legislation
+- Optionally the section or schedule referenced
+- The type of reference (definition, requirement, amendment, or penalty)
 
 ## Guidelines
 

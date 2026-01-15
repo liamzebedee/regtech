@@ -3,7 +3,7 @@
   "title": "Cost Analysis Result",
   "description": "Schema for Claude's cost extraction output",
   "type": "object",
-  "required": ["legislation_summary", "topics", "has_compliance_costs", "compliance_costs", "has_enforcement_costs", "confidence"],
+  "required": ["legislation_summary", "topics", "has_compliance_costs", "compliance_costs", "has_enforcement_costs", "referenced_legislation", "confidence"],
   "properties": {
     "legislation_summary": {
       "type": "string",
@@ -133,6 +133,32 @@
           }
         }
       ]
+    },
+    "referenced_legislation": {
+      "type": "array",
+      "description": "External legislation referenced or depended upon by this legislation",
+      "items": {
+        "type": "object",
+        "required": ["title", "reference_type"],
+        "properties": {
+          "title": {
+            "type": "string",
+            "description": "Name of the referenced Act or Regulation"
+          },
+          "section": {
+            "oneOf": [
+              { "type": "null" },
+              { "type": "string" }
+            ],
+            "description": "Optional specific section reference (e.g., 'Section 4', 'Schedule 1')"
+          },
+          "reference_type": {
+            "type": "string",
+            "enum": ["definition", "requirement", "amendment", "penalty"],
+            "description": "Type of reference: definition (uses terms from), requirement (compliance depends on), amendment (modifies), penalty (uses penalty units from)"
+          }
+        }
+      }
     },
     "analysis_notes": {
       "oneOf": [

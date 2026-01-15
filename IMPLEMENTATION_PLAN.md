@@ -141,7 +141,7 @@ src/lib/           # Shared utilities (cost formatting, types, db access)
 
 ### 3.3 Analysis Quality
 - [x] Handle long documents (chunking/summarization strategy)
-- [ ] Handle documents referencing other legislation
+- [x] Handle documents referencing other legislation
 - [x] Validate Claude outputs for consistency
 - [x] Create test suite with known-cost legislation
   - Created `analysis/tests/test_cases.json` with 6 test cases:
@@ -232,6 +232,28 @@ src/lib/           # Shared utilities (cost formatting, types, db access)
 ---
 
 ## Work Log
+### 2026-01-16 - External Legislation Reference Tracking Complete (Priority 3.3)
+
+**WHY:** Many pieces of legislation reference other Acts/Regulations for definitions, penalties, requirements, or amendments. Without tracking these references, analyses are incomplete - we can't tell which legislation depends on others or flag analyses that may miss context from referenced legislation. This feature enables dependency tracking and completeness monitoring.
+
+**Changes:**
+- Updated `analysis/prompts/cost_extraction.md` to instruct Claude to identify external legislation references
+- Updated `analysis/prompts/cost_schema.json` to require `referenced_legislation` array in responses
+- Added validation for `referenced_legislation` field in `analysis/scripts/analyze_legislation.py`
+- Updated `save_analysis_to_db()` to store referenced legislation in database
+- Created migration `analysis/scripts/migrations/002_add_referenced_legislation.sql`
+- Updated `src/lib/db/schema.ts` with `ReferencedLegislationItem` type and `referenced_legislation` column
+
+**Reference types tracked:**
+- `definition`: Uses terms/definitions from another Act
+- `requirement`: Compliance depends on another Act/Regulation
+- `amendment`: Modifies another Act
+- `penalty`: Uses penalty units defined in another Act
+
+**Build Status:** All 52 tests passing, Next.js build successful
+
+---
+
 ### 2026-01-16 - Long Document Handling Strategy Complete (Priority 3.3)
 
 **WHY:** 12.4% of legislation documents (619 out of 5000 sampled) exceed the 100k character context limit, with some documents reaching 5+ million characters. Simple truncation loses important content - fee schedules and penalty provisions often appear in later sections that get truncated. This implementation enables intelligent analysis of these long documents.
