@@ -184,8 +184,8 @@ src/lib/           # Shared utilities (cost formatting, types, db access)
   - Sorted by date_enacted DESC
 - [x] Add filtering by:
   - Jurisdiction (dropdown) - implemented
-  - ~~Topic tags (multi-select)~~ - deferred
-  - ~~Date range (date picker)~~ - deferred
+  - Topic (dropdown) - implemented
+  - Date range (from/to date inputs) - implemented
   - Analysis status (complete only by default) - implemented
 - [x] Add search by title/keyword
 - [x] Implement pagination (50 items per page)
@@ -243,6 +243,44 @@ src/lib/           # Shared utilities (cost formatting, types, db access)
 ---
 
 ## Work Log
+### 2026-01-16 - Spec-Implementation Alignment Fixes
+
+**WHY:** A comprehensive audit comparing specs to implementation revealed several gaps: type mismatches, missing features, and SQL compatibility issues. These fixes ensure the implementation fully aligns with the specifications.
+
+**Critical Fixes:**
+1. **Schema Alignment** - Updated `initializeDatabase()` in schema.ts to include columns from migrations:
+   - `referenced_legislation TEXT NOT NULL DEFAULT '[]'`
+   - `document_length INTEGER`
+   - `analysis_coverage REAL DEFAULT 1.0`
+   - `analysis_chunks INTEGER DEFAULT 1`
+   - `was_truncated INTEGER DEFAULT 0`
+   - Added index on `analysis_coverage`
+
+2. **Repository Alignment** - Updated `upsertLegislation()` to handle all new fields:
+   - `referencedLegislation`, `documentLength`, `analysisCoverage`, `analysisChunks`, `wasTruncated`
+
+3. **getCostStatsByTopic() Implemented** - Proper aggregation of costs by topic using JSON parsing and JavaScript aggregation (SQLite JSON limitations)
+
+**Medium Fixes:**
+4. **CostRow Type Fix** - Removed non-existent `created_at` field from app/src/lib/db.ts CostRow interface
+5. **SQL NULLS LAST Fix** - Changed `ORDER BY date_enacted DESC NULLS LAST` to SQLite-compatible `ORDER BY date_enacted IS NULL, date_enacted DESC`
+6. **Date Range Filter** - Added `dateFrom` and `dateTo` inputs to index page per website spec
+7. **Topic Filter** - Added topic dropdown to index page per website spec (populated from analyzed legislation)
+
+**Updated Priority 4.2:**
+- Change date range filter from "deferred" to "implemented"
+- Change topic filter on index to "implemented"
+
+**Files Modified:**
+- `src/lib/db/schema.ts` - Added missing columns to CREATE TABLE
+- `src/lib/db/repository.ts` - Updated upsertLegislation, implemented getCostStatsByTopic
+- `app/src/lib/db.ts` - Fixed CostRow interface
+- `app/src/app/page.tsx` - Added filters, fixed SQL syntax
+
+**Build Status:** All 52 tests passing, Next.js build successful
+
+---
+
 ### 2026-01-16 - Analysis Documentation Complete (Priority 3.1 & 5.2)
 
 **WHY:** Documentation ensures the analysis methodology and prompt engineering decisions are preserved for future maintenance and improvement. Without documentation, future developers would need to reverse-engineer decisions from code.

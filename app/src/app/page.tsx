@@ -5,6 +5,9 @@ interface ListParams {
   jurisdiction?: string;
   status?: string;
   search?: string;
+  topic?: string;
+  dateFrom?: string;
+  dateTo?: string;
   page?: number;
 }
 
@@ -27,6 +30,22 @@ async function getLegislation(params: ListParams) {
     values.push(`%${params.search}%`);
   }
 
+  if (params.topic) {
+    // Topics are stored as JSON arrays, so we use LIKE to match
+    conditions.push("topics LIKE ?");
+    values.push(`%"${params.topic}"%`);
+  }
+
+  if (params.dateFrom) {
+    conditions.push("date_enacted >= ?");
+    values.push(params.dateFrom);
+  }
+
+  if (params.dateTo) {
+    conditions.push("date_enacted <= ?");
+    values.push(params.dateTo);
+  }
+
   const where = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
   const limit = 50;
   const offset = ((params.page || 1) - 1) * limit;
@@ -37,12 +56,46 @@ async function getLegislation(params: ListParams) {
 
   const stmt = db.prepare(`
     SELECT * FROM legislation ${where}
-    ORDER BY date_enacted DESC NULLS LAST
+    ORDER BY date_enacted IS NULL, date_enacted DESC
     LIMIT ? OFFSET ?
   `);
   const rows = stmt.all(...values, limit, offset) as LegislationRow[];
 
   return { rows, total, page: params.page || 1, limit };
+}
+
+/**
+ * Get all unique topics from analyzed legislation.
+ * WHY: Enables topic filter dropdown on index page per spec requirement.
+ */
+async function getAllTopics(): Promise<{ slug: string; displayName: string }[]> {
+  const db = getDatabase();
+  const rows = db
+    .prepare(
+      `SELECT topics FROM legislation
+       WHERE analysis_status = 'complete' AND topics IS NOT NULL AND topics != '[]'`
+    )
+    .all() as { topics: string }[];
+
+  const topicSet = new Set<string>();
+  for (const row of rows) {
+    try {
+      const topics = JSON.parse(row.topics) as string[];
+      topics.forEach((t) => topicSet.add(t));
+    } catch {
+      // Skip malformed JSON
+    }
+  }
+
+  return Array.from(topicSet)
+    .sort()
+    .map((slug) => ({
+      slug,
+      displayName: slug
+        .split("-")
+        .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+        .join(" "),
+    }));
 }
 
 function formatJurisdiction(jurisdiction: string): string {
@@ -68,18 +121,43 @@ function formatDate(dateStr: string | null): string {
   });
 }
 
+/**
+ * Build pagination URL with all current filter parameters preserved.
+ */
+function buildPaginationUrl(
+  page: number,
+  params: { [key: string]: string | undefined }
+): string {
+  const queryParams = new URLSearchParams();
+  queryParams.set("page", String(page));
+
+  if (params.jurisdiction) queryParams.set("jurisdiction", params.jurisdiction);
+  if (params.search) queryParams.set("search", params.search);
+  if (params.topic) queryParams.set("topic", params.topic);
+  if (params.dateFrom) queryParams.set("dateFrom", params.dateFrom);
+  if (params.dateTo) queryParams.set("dateTo", params.dateTo);
+
+  return `?${queryParams.toString()}`;
+}
+
 export default async function Home({
   searchParams,
 }: {
   searchParams: Promise<{ [key: string]: string | undefined }>;
 }) {
   const params = await searchParams;
-  const { rows, total, page, limit } = await getLegislation({
-    jurisdiction: params.jurisdiction,
-    status: params.status,
-    search: params.search,
-    page: params.page ? parseInt(params.page) : 1,
-  });
+  const [{ rows, total, page, limit }, topics] = await Promise.all([
+    getLegislation({
+      jurisdiction: params.jurisdiction,
+      status: params.status,
+      search: params.search,
+      topic: params.topic,
+      dateFrom: params.dateFrom,
+      dateTo: params.dateTo,
+      page: params.page ? parseInt(params.page) : 1,
+    }),
+    getAllTopics(),
+  ]);
 
   const totalPages = Math.ceil(total / limit);
 
@@ -91,53 +169,116 @@ export default async function Home({
 
       {/* Filters */}
       <form
-        className="mb-6 flex flex-col sm:flex-row flex-wrap gap-3 sm:gap-4"
+        className="mb-6 space-y-3 sm:space-y-4"
         role="search"
         aria-label="Filter legislation"
       >
-        <div className="flex-1 min-w-0 sm:max-w-xs">
-          <label htmlFor="search" className="sr-only">
-            Search by title
-          </label>
-          <input
-            type="search"
-            id="search"
-            name="search"
-            placeholder="Search by title..."
-            defaultValue={params.search}
-            aria-label="Search legislation by title"
-            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-md bg-white dark:bg-gray-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
-          />
+        {/* First row: Search and Jurisdiction */}
+        <div className="flex flex-col sm:flex-row flex-wrap gap-3 sm:gap-4">
+          <div className="flex-1 min-w-0 sm:max-w-xs">
+            <label htmlFor="search" className="sr-only">
+              Search by title
+            </label>
+            <input
+              type="search"
+              id="search"
+              name="search"
+              placeholder="Search by title..."
+              defaultValue={params.search}
+              aria-label="Search legislation by title"
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-md bg-white dark:bg-gray-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+            />
+          </div>
+
+          <div>
+            <label htmlFor="jurisdiction" className="sr-only">
+              Filter by jurisdiction
+            </label>
+            <select
+              id="jurisdiction"
+              name="jurisdiction"
+              defaultValue={params.jurisdiction}
+              aria-label="Filter by jurisdiction"
+              className="w-full sm:w-auto px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-md bg-white dark:bg-gray-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+            >
+              <option value="">All Jurisdictions</option>
+              <option value="commonwealth">Commonwealth</option>
+              <option value="new_south_wales">New South Wales</option>
+              <option value="queensland">Queensland</option>
+              <option value="tasmania">Tasmania</option>
+              <option value="western_australia">Western Australia</option>
+              <option value="south_australia">South Australia</option>
+              <option value="norfolk_island">Norfolk Island</option>
+            </select>
+          </div>
+
+          {topics.length > 0 && (
+            <div>
+              <label htmlFor="topic" className="sr-only">
+                Filter by topic
+              </label>
+              <select
+                id="topic"
+                name="topic"
+                defaultValue={params.topic}
+                aria-label="Filter by topic"
+                className="w-full sm:w-auto px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-md bg-white dark:bg-gray-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+              >
+                <option value="">All Topics</option>
+                {topics.map((topic) => (
+                  <option key={topic.slug} value={topic.slug}>
+                    {topic.displayName}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
         </div>
 
-        <div>
-          <label htmlFor="jurisdiction" className="sr-only">
-            Filter by jurisdiction
-          </label>
-          <select
-            id="jurisdiction"
-            name="jurisdiction"
-            defaultValue={params.jurisdiction}
-            aria-label="Filter by jurisdiction"
-            className="w-full sm:w-auto px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-md bg-white dark:bg-gray-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+        {/* Second row: Date range and Filter button */}
+        <div className="flex flex-col sm:flex-row flex-wrap gap-3 sm:gap-4 items-end">
+          <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
+            <div>
+              <label
+                htmlFor="dateFrom"
+                className="block text-xs text-gray-500 dark:text-gray-400 mb-1"
+              >
+                From date
+              </label>
+              <input
+                type="date"
+                id="dateFrom"
+                name="dateFrom"
+                defaultValue={params.dateFrom}
+                aria-label="Filter from date"
+                className="w-full sm:w-auto px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-md bg-white dark:bg-gray-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+              />
+            </div>
+            <div>
+              <label
+                htmlFor="dateTo"
+                className="block text-xs text-gray-500 dark:text-gray-400 mb-1"
+              >
+                To date
+              </label>
+              <input
+                type="date"
+                id="dateTo"
+                name="dateTo"
+                defaultValue={params.dateTo}
+                aria-label="Filter to date"
+                className="w-full sm:w-auto px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-md bg-white dark:bg-gray-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+              />
+            </div>
+          </div>
+
+          <button
+            type="submit"
+            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 transition-colors"
           >
-            <option value="">All Jurisdictions</option>
-            <option value="commonwealth">Commonwealth</option>
-            <option value="new_south_wales">New South Wales</option>
-            <option value="queensland">Queensland</option>
-            <option value="tasmania">Tasmania</option>
-            <option value="western_australia">Western Australia</option>
-            <option value="south_australia">South Australia</option>
-            <option value="norfolk_island">Norfolk Island</option>
-          </select>
+            Filter
+          </button>
         </div>
-
-        <button
-          type="submit"
-          className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 transition-colors"
-        >
-          Filter
-        </button>
       </form>
 
       {/* Results count */}
@@ -197,7 +338,7 @@ export default async function Home({
         >
           {page > 1 ? (
             <Link
-              href={`?page=${page - 1}${params.jurisdiction ? `&jurisdiction=${params.jurisdiction}` : ""}${params.search ? `&search=${params.search}` : ""}`}
+              href={buildPaginationUrl(page - 1, params)}
               className="w-full sm:w-auto text-center px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 transition-colors"
               aria-label={`Go to page ${page - 1}`}
             >
@@ -221,7 +362,7 @@ export default async function Home({
 
           {page < totalPages ? (
             <Link
-              href={`?page=${page + 1}${params.jurisdiction ? `&jurisdiction=${params.jurisdiction}` : ""}${params.search ? `&search=${params.search}` : ""}`}
+              href={buildPaginationUrl(page + 1, params)}
               className="w-full sm:w-auto text-center px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 transition-colors"
               aria-label={`Go to page ${page + 1}`}
             >

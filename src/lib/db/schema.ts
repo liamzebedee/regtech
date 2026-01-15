@@ -34,7 +34,12 @@ export function initializeDatabase(dbPath: string): Database.Database {
       text_path TEXT,
       text_excerpt TEXT,
       topics TEXT NOT NULL DEFAULT '[]',
+      referenced_legislation TEXT NOT NULL DEFAULT '[]',
       analysis_status TEXT NOT NULL DEFAULT 'pending',
+      document_length INTEGER,
+      analysis_coverage REAL DEFAULT 1.0,
+      analysis_chunks INTEGER DEFAULT 1,
+      was_truncated INTEGER DEFAULT 0,
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       updated_at TEXT NOT NULL DEFAULT (datetime('now'))
     )
@@ -67,6 +72,7 @@ export function initializeDatabase(dbPath: string): Database.Database {
     CREATE INDEX IF NOT EXISTS idx_legislation_date_enacted ON legislation(date_enacted);
     CREATE INDEX IF NOT EXISTS idx_legislation_analysis_status ON legislation(analysis_status);
     CREATE INDEX IF NOT EXISTS idx_legislation_type ON legislation(type);
+    CREATE INDEX IF NOT EXISTS idx_legislation_analysis_coverage ON legislation(analysis_coverage);
     CREATE INDEX IF NOT EXISTS idx_costs_legislation_id ON costs(legislation_id);
     CREATE INDEX IF NOT EXISTS idx_costs_cost_type ON costs(cost_type);
     CREATE INDEX IF NOT EXISTS idx_costs_party ON costs(party);

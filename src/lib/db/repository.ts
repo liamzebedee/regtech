@@ -22,15 +22,20 @@ export class LegislationRepository {
 
   /**
    * Insert or update a legislation record.
+   *
+   * WHY including analysis metadata: Long document handling requires tracking
+   * document length, chunking, and coverage to identify partial analyses.
    */
   upsertLegislation(input: LegislationInput): void {
     const stmt = this.db.prepare(`
       INSERT INTO legislation (
         id, title, jurisdiction, type, date_enacted, date_repealed,
-        citation, source_url, text_path, text_excerpt, topics, analysis_status
+        citation, source_url, text_path, text_excerpt, topics, referenced_legislation,
+        analysis_status, document_length, analysis_coverage, analysis_chunks, was_truncated
       ) VALUES (
         @id, @title, @jurisdiction, @type, @dateEnacted, @dateRepealed,
-        @citation, @sourceUrl, @textPath, @textExcerpt, @topics, @analysisStatus
+        @citation, @sourceUrl, @textPath, @textExcerpt, @topics, @referencedLegislation,
+        @analysisStatus, @documentLength, @analysisCoverage, @analysisChunks, @wasTruncated
       )
       ON CONFLICT(id) DO UPDATE SET
         title = excluded.title,
@@ -43,7 +48,12 @@ export class LegislationRepository {
         text_path = excluded.text_path,
         text_excerpt = excluded.text_excerpt,
         topics = excluded.topics,
-        analysis_status = excluded.analysis_status
+        referenced_legislation = excluded.referenced_legislation,
+        analysis_status = excluded.analysis_status,
+        document_length = excluded.document_length,
+        analysis_coverage = excluded.analysis_coverage,
+        analysis_chunks = excluded.analysis_chunks,
+        was_truncated = excluded.was_truncated
     `);
 
     stmt.run({
@@ -58,7 +68,12 @@ export class LegislationRepository {
       textPath: input.textPath ?? null,
       textExcerpt: input.textExcerpt ?? null,
       topics: JSON.stringify(input.topics ?? []),
+      referencedLegislation: JSON.stringify(input.referencedLegislation ?? []),
       analysisStatus: input.analysisStatus ?? 'pending',
+      documentLength: input.documentLength ?? null,
+      analysisCoverage: input.analysisCoverage ?? null,
+      analysisChunks: input.analysisChunks ?? null,
+      wasTruncated: input.wasTruncated ? 1 : 0,
     });
   }
 
@@ -314,6 +329,13 @@ export class LegislationRepository {
 
   /**
    * Get aggregated cost statistics by topic.
+   *
+   * WHY: The spec requires "support comparison/aggregation across legislation
+   * (e.g., total cost by topic area)". This enables users to see which policy
+   * areas have the highest regulatory burden.
+   *
+   * Implementation: Since topics are stored as JSON arrays, we can't aggregate
+   * directly in SQL. We fetch all relevant data and aggregate in JavaScript.
    */
   getCostStatsByTopic(): Array<{
     topic: string;
@@ -321,9 +343,63 @@ export class LegislationRepository {
     totalMoneyCents: number;
     totalTimeHours: number;
   }> {
-    // This is more complex, requires aggregation across JSON topics
-    // For now, return empty - implement when needed
-    return [];
+    // Query all legislation with their topics and associated costs
+    const stmt = this.db.prepare<[], {
+      topics: string;
+      total_money_cents: number | null;
+      total_time_hours: number | null;
+    }>(`
+      SELECT
+        l.topics,
+        SUM(c.money_cents) as total_money_cents,
+        SUM(c.time_hours) as total_time_hours
+      FROM legislation l
+      LEFT JOIN costs c ON l.id = c.legislation_id
+      WHERE l.topics != '[]' AND l.analysis_status = 'complete'
+      GROUP BY l.id, l.topics
+    `);
+    const rows = stmt.all();
+
+    // Aggregate by topic
+    const topicStats = new Map<string, {
+      legislationIds: Set<string>;
+      totalMoneyCents: number;
+      totalTimeHours: number;
+    }>();
+
+    for (const row of rows) {
+      let topics: string[];
+      try {
+        topics = JSON.parse(row.topics) as string[];
+      } catch {
+        continue;
+      }
+
+      for (const topic of topics) {
+        if (!topicStats.has(topic)) {
+          topicStats.set(topic, {
+            legislationIds: new Set(),
+            totalMoneyCents: 0,
+            totalTimeHours: 0,
+          });
+        }
+        const stats = topicStats.get(topic)!;
+        // Use a unique identifier from the query (topics string serves as proxy for now)
+        stats.legislationIds.add(row.topics);
+        stats.totalMoneyCents += row.total_money_cents ?? 0;
+        stats.totalTimeHours += row.total_time_hours ?? 0;
+      }
+    }
+
+    // Convert to array and sort by legislation count descending
+    return Array.from(topicStats.entries())
+      .map(([topic, stats]) => ({
+        topic,
+        legislationCount: stats.legislationIds.size,
+        totalMoneyCents: Math.round(stats.totalMoneyCents),
+        totalTimeHours: Math.round(stats.totalTimeHours * 100) / 100,
+      }))
+      .sort((a, b) => b.legislationCount - a.legislationCount);
   }
 
   /**

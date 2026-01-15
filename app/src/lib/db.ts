@@ -76,5 +76,4 @@ export interface CostRow {
   frequency: string;
   is_indefinite: number;
   notes: string | null;
-  created_at: string;
 }
