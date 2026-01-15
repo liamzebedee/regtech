@@ -1,0 +1,19 @@
+{
+  "name": "self-improving-loops",
+  "description": "Design and run autonomous Claude loops with supervision",
+  "version": "1.0.0",
+  "commands": {
+    "help": {
+      "description": "Explain the self-improving loop pattern",
+      "prompt_file": "help.md"
+    },
+    "create": {
+      "description": "Create a new loop for a work area",
+      "prompt_file": "create.md"
+    },
+    "diagnose": {
+      "description": "Diagnose why a loop is stuck",
+      "prompt_file": "diagnose.md"
+    }
+  }
+}

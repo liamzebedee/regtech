@@ -35,7 +35,7 @@ When using `claude`, note the following:
 - You can self-improve by designing loops for different work areas.
     - Put each loop's code in a different folder.
     - Design a loop.sh which calls claude in a while loop to read from a PROMPT.md file.
-    - Design the PROMPT.md file to compare the system state aganist the desired state, read the current work item from an implementation_plan.md file containing todos and work log notes, and then work on completing that item.
+    - Design the PROMPT.md file to compare the system state aganist the desired state (idempotency), read the current work item from an implementation_plan.md file containing todos and work log notes, and then work on completing that item.
     - Call loop.sh inside another `claude` instance in order to supervise the loop, which helps to resolve "infinite loops" where the agent gets stuck (among other potential design flaws).
 
 ### Project architecture and technical.
