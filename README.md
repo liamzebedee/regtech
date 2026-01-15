@@ -119,33 +119,68 @@ The SQLite database (`data/legislation.db`) contains:
 ### Sample Queries
 
 ```sql
--- Find legislation with high compliance costs
-SELECT l.title, l.jurisdiction, c.money_aud / 100.0 as cost_aud
+-- Database status overview
+SELECT analysis_status, COUNT(*) as count
+FROM legislation
+GROUP BY analysis_status;
+
+-- Find legislation with high compliance costs (>$1000)
+SELECT l.title, l.jurisdiction, c.party,
+       c.money_cents / 100.0 as cost_aud,
+       c.time_display
 FROM legislation l
 JOIN costs c ON l.id = c.legislation_id
-WHERE c.cost_type = 'compliance' AND c.money_aud > 100000
-ORDER BY c.money_aud DESC;
+WHERE c.cost_type = 'compliance' AND c.money_cents > 100000
+ORDER BY c.money_cents DESC;
 
 -- Total compliance costs by jurisdiction
 SELECT l.jurisdiction,
        COUNT(DISTINCT l.id) as legislation_count,
-       SUM(c.money_aud) / 100.0 as total_cost_aud
+       SUM(c.money_cents) / 100.0 as total_cost_aud
 FROM legislation l
 JOIN costs c ON l.id = c.legislation_id
 WHERE c.cost_type = 'compliance'
 GROUP BY l.jurisdiction;
 
 -- Find indefinite costs (liability transfers, burden of proof)
-SELECT l.title, c.party, c.indefinite_notes
+SELECT l.title, c.party, c.notes
 FROM legislation l
 JOIN costs c ON l.id = c.legislation_id
 WHERE c.is_indefinite = 1;
+
+-- Costs by party type
+SELECT c.party,
+       COUNT(*) as cost_count,
+       SUM(c.money_cents) / 100.0 as total_money_aud,
+       SUM(c.time_hours) as total_hours
+FROM costs c
+WHERE c.cost_type = 'compliance'
+GROUP BY c.party
+ORDER BY total_money_aud DESC;
 
 -- Legislation by topic
 SELECT l.title, l.topics, l.jurisdiction
 FROM legislation l
 WHERE l.topics != '[]' AND l.analysis_status = 'complete'
 ORDER BY l.date_enacted DESC;
+
+-- Recent legislation (2020+)
+SELECT title, jurisdiction, date_enacted, analysis_status
+FROM legislation
+WHERE date_enacted >= '2020-01-01'
+ORDER BY date_enacted DESC
+LIMIT 20;
+
+-- Legislation with both time and money costs
+SELECT l.title, c.party, c.time_display, c.money_display
+FROM legislation l
+JOIN costs c ON l.id = c.legislation_id
+WHERE c.time_hours IS NOT NULL AND c.money_cents IS NOT NULL;
+
+-- All costs for a specific legislation
+SELECT *
+FROM costs
+WHERE legislation_id = 'federal_register_of_legislation:C2014A00095';
 ```
 
 ## Corpus Details

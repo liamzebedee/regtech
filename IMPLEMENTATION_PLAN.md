@@ -223,7 +223,11 @@ src/lib/           # Shared utilities (cost formatting, types, db access)
 ### 5.2 Documentation
 - [x] Update README with setup instructions
 - [ ] Document analysis methodology
-- [ ] Add sample queries for database exploration
+- [x] Add sample queries for database exploration
+  - Expanded README.md sample queries section with 9 practical SQL examples:
+    - Database status overview, high compliance costs, jurisdiction totals
+    - Costs by party type, indefinite costs, topic-based filtering
+    - Recent legislation, costs with both time and money, specific legislation lookup
 
 ---
 
