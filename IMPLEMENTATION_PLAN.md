@@ -176,8 +176,8 @@ src/lib/           # Shared utilities (cost formatting, types, db access)
 - [x] Implement topic aggregation (total cost by topic)
 
 ### 4.5 Polish
-- [ ] Responsive design (mobile-friendly)
-- [ ] Accessibility audit (keyboard nav, screen readers)
+- [x] Responsive design (mobile-friendly)
+- [x] Accessibility audit (keyboard nav, screen readers)
 - [x] Loading states
 - [x] Error boundaries
 
@@ -199,6 +199,45 @@ src/lib/           # Shared utilities (cost formatting, types, db access)
 ---
 
 ## Work Log
+
+### 2026-01-16 - Responsive Design and Accessibility Complete (Priority 4.5)
+
+**WHY:** The website spec requires a responsive, mobile-friendly design and accessibility for screen readers and keyboard navigation. These are essential for inclusive user experience and modern web standards compliance.
+
+**Responsive Design Changes:**
+- Created `app/src/components/MobileNav.tsx` - hamburger menu navigation drawer for mobile screens
+- Added responsive breakpoints throughout: typography scales (`text-xl sm:text-2xl`), padding (`p-3 sm:p-4`), grid columns (`grid-cols-1 sm:grid-cols-2 md:grid-cols-4`)
+- Header uses desktop nav (hidden on mobile) + mobile nav hamburger (hidden on desktop)
+- Pagination stacks vertically on mobile, horizontal on desktop
+- Form inputs full-width on mobile, constrained on larger screens
+
+**Accessibility Changes:**
+- Added skip-to-main-content link for keyboard users (visible on focus)
+- Added form labels (visually hidden but available to screen readers)
+- Added ARIA attributes throughout: `aria-label`, `aria-labelledby`, `aria-live`, `aria-expanded`, `aria-controls`, `aria-current`, `role`
+- Added focus-visible ring styling for keyboard navigation feedback
+- Added reduced-motion media query support
+- Added minimum touch target sizing (44px) for touch devices
+- Updated ExpandableText component with `aria-expanded` and `aria-controls`
+- Used semantic HTML elements: `<nav>`, `<article>`, `<section>`, `<time>`, `<ul>`/`<li>`
+
+**Files Modified:**
+- `app/src/app/layout.tsx` - skip link, mobile nav, focus styling
+- `app/src/app/globals.css` - sr-only, focus-visible, touch targets, reduced motion
+- `app/src/app/page.tsx` - form labels, ARIA attributes, responsive design
+- `app/src/app/topics/page.tsx` - ARIA attributes, responsive design
+- `app/src/app/topics/[topic]/page.tsx` - ARIA attributes, responsive design
+- `app/src/app/legislation/[id]/page.tsx` - ARIA attributes, responsive design
+- `app/src/components/ExpandableText.tsx` - aria-expanded, aria-controls, focus styling
+
+**Files Created:**
+- `app/src/components/MobileNav.tsx` - mobile navigation drawer component
+
+**Build Status:**
+- All 47 root tests passing
+- Production build successful with no ESLint warnings
+
+---
 
 ### 2026-01-15 - Loading States and Error Boundaries Added (Priority 4.5)
 

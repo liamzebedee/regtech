@@ -120,15 +120,20 @@ export default async function TopicsPage() {
 
   return (
     <div>
-      <h1 className="text-2xl font-bold mb-2">Browse by Topic</h1>
-      <p className="text-gray-600 dark:text-gray-400 mb-6">
-        {topics.length > 0
-          ? `${topics.length} topics across ${totalLegislation} legislation entries`
-          : "No topics available yet. Topics are extracted during legislation analysis."}
-      </p>
+      <header className="mb-6">
+        <h1 className="text-xl sm:text-2xl font-bold mb-2">Browse by Topic</h1>
+        <p className="text-sm sm:text-base text-gray-600 dark:text-gray-400" aria-live="polite">
+          {topics.length > 0
+            ? `${topics.length} topics across ${totalLegislation} legislation entries`
+            : "No topics available yet. Topics are extracted during legislation analysis."}
+        </p>
+      </header>
 
       {topics.length === 0 ? (
-        <div className="text-center py-12 text-gray-500 border border-dashed border-gray-300 dark:border-gray-700 rounded-lg">
+        <div
+          className="text-center py-12 text-gray-500 border border-dashed border-gray-300 dark:border-gray-700 rounded-lg"
+          role="status"
+        >
           <p className="text-lg">No topics found</p>
           <p className="text-sm mt-2">
             Run the analysis pipeline to extract topics from legislation.
@@ -138,36 +143,43 @@ export default async function TopicsPage() {
           </code>
         </div>
       ) : (
-        <div className="space-y-8">
+        <div className="space-y-6 sm:space-y-8">
           {Array.from(groupedTopics.entries()).map(([category, categoryTopics]) => (
-            <section key={category}>
-              <h2 className="text-lg font-semibold mb-3 text-gray-700 dark:text-gray-300">
+            <section key={category} aria-labelledby={`category-${category.toLowerCase()}`}>
+              <h2
+                id={`category-${category.toLowerCase()}`}
+                className="text-base sm:text-lg font-semibold mb-3 text-gray-700 dark:text-gray-300"
+              >
                 {category}
               </h2>
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+              <ul className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
                 {categoryTopics.map((topic) => (
-                  <Link
-                    key={topic.topic}
-                    href={`/topics/${encodeURIComponent(topic.topic)}`}
-                    className="block p-3 border border-gray-200 dark:border-gray-800 rounded-lg hover:border-blue-500 dark:hover:border-blue-500 transition-colors"
-                  >
-                    <div className="font-medium">{topic.displayName}</div>
-                    <div className="text-sm text-gray-500 dark:text-gray-400">
-                      {topic.count} {topic.count === 1 ? "entry" : "entries"}
-                    </div>
-                  </Link>
+                  <li key={topic.topic}>
+                    <Link
+                      href={`/topics/${encodeURIComponent(topic.topic)}`}
+                      className="block p-3 border border-gray-200 dark:border-gray-800 rounded-lg hover:border-blue-500 dark:hover:border-blue-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 transition-colors"
+                    >
+                      <div className="font-medium text-sm sm:text-base">{topic.displayName}</div>
+                      <div className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">
+                        {topic.count} {topic.count === 1 ? "entry" : "entries"}
+                      </div>
+                    </Link>
+                  </li>
                 ))}
-              </div>
+              </ul>
             </section>
           ))}
         </div>
       )}
 
-      <div className="mt-8 pt-4 border-t border-gray-200 dark:border-gray-800">
-        <Link href="/" className="text-blue-600 hover:text-blue-700">
-          &larr; Back to all legislation
+      <nav className="mt-8 pt-4 border-t border-gray-200 dark:border-gray-800" aria-label="Back navigation">
+        <Link
+          href="/"
+          className="text-blue-600 hover:text-blue-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 rounded-sm"
+        >
+          ← Back to all legislation
         </Link>
-      </div>
+      </nav>
     </div>
   );
 }

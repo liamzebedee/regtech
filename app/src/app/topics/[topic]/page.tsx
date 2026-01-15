@@ -182,91 +182,127 @@ export default async function TopicPage({
 
   return (
     <div>
-      <div className="mb-6">
-        <Link href="/topics" className="text-blue-600 hover:text-blue-700 text-sm">
-          &larr; All topics
-        </Link>
-        <h1 className="text-2xl font-bold mt-2">{displayName}</h1>
-        <p className="text-gray-600 dark:text-gray-400">
+      <header className="mb-6">
+        <nav aria-label="Breadcrumb" className="text-sm">
+          <Link
+            href="/topics"
+            className="text-blue-600 hover:text-blue-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 rounded-sm"
+          >
+            ← All topics
+          </Link>
+        </nav>
+        <h1 className="text-xl sm:text-2xl font-bold mt-2">{displayName}</h1>
+        <p className="text-sm sm:text-base text-gray-600 dark:text-gray-400">
           {total} {total === 1 ? "piece" : "pieces"} of legislation
         </p>
-      </div>
+      </header>
 
       {/* Topic Statistics */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8 p-4 bg-gray-50 dark:bg-gray-900 rounded-lg">
+      <section
+        className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 mb-6 sm:mb-8 p-3 sm:p-4 bg-gray-50 dark:bg-gray-900 rounded-lg"
+        aria-label="Topic statistics"
+      >
         <div>
-          <div className="text-sm text-gray-500 dark:text-gray-400">Legislation</div>
-          <div className="text-xl font-semibold">{stats.totalLegislation}</div>
+          <div className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">Legislation</div>
+          <div className="text-lg sm:text-xl font-semibold">{stats.totalLegislation}</div>
         </div>
         <div>
-          <div className="text-sm text-gray-500 dark:text-gray-400">Compliance Costs</div>
-          <div className="text-xl font-semibold">
+          <div className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">Compliance Costs</div>
+          <div className="text-lg sm:text-xl font-semibold">
             {stats.totalComplianceCosts > 0 ? formatMoney(stats.totalComplianceCosts) : "—"}
           </div>
         </div>
         <div>
-          <div className="text-sm text-gray-500 dark:text-gray-400">Enforcement Costs</div>
-          <div className="text-xl font-semibold">
+          <div className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">Enforcement Costs</div>
+          <div className="text-lg sm:text-xl font-semibold">
             {stats.totalEnforcementCosts > 0 ? formatMoney(stats.totalEnforcementCosts) : "—"}
           </div>
         </div>
         <div>
-          <div className="text-sm text-gray-500 dark:text-gray-400">Parties Affected</div>
-          <div className="text-xl font-semibold">
+          <div className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">Parties Affected</div>
+          <div className="text-sm sm:text-base font-semibold">
             {stats.partiesAffected.size > 0
               ? Array.from(stats.partiesAffected).map(formatParty).join(", ")
               : "—"}
           </div>
         </div>
-      </div>
+      </section>
 
       {/* Legislation List */}
-      <div className="space-y-4">
+      <ul className="space-y-3 sm:space-y-4" aria-label={`${displayName} legislation`}>
         {rows.map((row) => (
-          <Link
-            key={row.id}
-            href={`/legislation/${encodeURIComponent(row.id)}`}
-            className="block p-4 border border-gray-200 dark:border-gray-800 rounded-lg hover:border-blue-500 dark:hover:border-blue-500 transition-colors"
-          >
-            <div className="flex justify-between items-start gap-4">
-              <div className="flex-1 min-w-0">
-                <h2 className="font-medium text-lg truncate">{row.title}</h2>
-                <div className="flex flex-wrap gap-2 mt-2 text-sm text-gray-500 dark:text-gray-400">
-                  <span className="px-2 py-0.5 bg-gray-100 dark:bg-gray-800 rounded">
-                    {formatJurisdiction(row.jurisdiction)}
-                  </span>
-                  <span>{row.type.replace("_", " ")}</span>
-                  {row.date_enacted && <span>Enacted {formatDate(row.date_enacted)}</span>}
+          <li key={row.id}>
+            <Link
+              href={`/legislation/${encodeURIComponent(row.id)}`}
+              className="block p-3 sm:p-4 border border-gray-200 dark:border-gray-800 rounded-lg hover:border-blue-500 dark:hover:border-blue-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 transition-colors"
+            >
+              <div className="flex justify-between items-start gap-4">
+                <div className="flex-1 min-w-0">
+                  <h2 className="font-medium text-base sm:text-lg truncate">{row.title}</h2>
+                  <div className="flex flex-wrap gap-2 mt-2 text-xs sm:text-sm text-gray-500 dark:text-gray-400">
+                    <span className="px-2 py-0.5 bg-gray-100 dark:bg-gray-800 rounded">
+                      {formatJurisdiction(row.jurisdiction)}
+                    </span>
+                    <span>{row.type.replace("_", " ")}</span>
+                    {row.date_enacted && (
+                      <span>
+                        <time dateTime={row.date_enacted}>
+                          Enacted {formatDate(row.date_enacted)}
+                        </time>
+                      </span>
+                    )}
+                  </div>
                 </div>
               </div>
-            </div>
-          </Link>
+            </Link>
+          </li>
         ))}
-      </div>
+      </ul>
 
       {/* Pagination */}
       {totalPages > 1 && (
-        <div className="flex justify-center gap-2 mt-8">
-          {page > 1 && (
+        <nav
+          className="flex flex-col sm:flex-row items-center justify-center gap-2 sm:gap-4 mt-8"
+          aria-label="Pagination"
+        >
+          {page > 1 ? (
             <Link
               href={`/topics/${encodeURIComponent(decodedTopic)}?page=${page - 1}`}
-              className="px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800"
+              className="w-full sm:w-auto text-center px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 transition-colors"
+              aria-label={`Go to page ${page - 1}`}
             >
               Previous
             </Link>
+          ) : (
+            <span
+              className="w-full sm:w-auto text-center px-4 py-2 border border-gray-200 dark:border-gray-800 rounded-md text-gray-400 dark:text-gray-600 cursor-not-allowed"
+              aria-disabled="true"
+            >
+              Previous
+            </span>
           )}
-          <span className="px-4 py-2 text-gray-600 dark:text-gray-400">
+
+          <span className="px-4 py-2 text-gray-600 dark:text-gray-400" aria-current="page">
             Page {page} of {totalPages}
           </span>
-          {page < totalPages && (
+
+          {page < totalPages ? (
             <Link
               href={`/topics/${encodeURIComponent(decodedTopic)}?page=${page + 1}`}
-              className="px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800"
+              className="w-full sm:w-auto text-center px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 transition-colors"
+              aria-label={`Go to page ${page + 1}`}
             >
               Next
             </Link>
+          ) : (
+            <span
+              className="w-full sm:w-auto text-center px-4 py-2 border border-gray-200 dark:border-gray-800 rounded-md text-gray-400 dark:text-gray-600 cursor-not-allowed"
+              aria-disabled="true"
+            >
+              Next
+            </span>
           )}
-        </div>
+        </nav>
       )}
     </div>
   );
