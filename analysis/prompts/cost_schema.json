@@ -3,11 +3,20 @@
   "title": "Cost Analysis Result",
   "description": "Schema for Claude's cost extraction output",
   "type": "object",
-  "required": ["legislation_summary", "has_compliance_costs", "compliance_costs", "has_enforcement_costs", "confidence"],
+  "required": ["legislation_summary", "topics", "has_compliance_costs", "compliance_costs", "has_enforcement_costs", "confidence"],
   "properties": {
     "legislation_summary": {
       "type": "string",
       "description": "One paragraph describing what this legislation does"
+    },
+    "topics": {
+      "type": "array",
+      "description": "2-5 topic tags categorizing this legislation",
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1,
+      "maxItems": 5
     },
     "has_compliance_costs": {
       "type": "boolean",

@@ -200,6 +200,30 @@ src/lib/           # Shared utilities (cost formatting, types, db access)
 
 ## Work Log
 
+### 2026-01-15 - Topics Extraction Added to Analysis Pipeline
+
+**WHY:** The website spec requires topic/cluster pages for browsing legislation by topic, but the analysis pipeline wasn't extracting topics. Without topic data, topic pages would be empty. This change enables future topic pages and makes the data more useful for filtering and aggregation.
+
+**Changes:**
+- Updated `analysis/prompts/cost_extraction.md` to request 2-5 topic tags per legislation
+- Added predefined topic vocabulary (taxation, environmental, workplace-safety, etc.)
+- Updated `analysis/prompts/cost_schema.json` to require topics array in response
+- Updated `analysis/scripts/analyze_legislation.py` to save topics to database
+- Topics are saved as JSON array in the `legislation.topics` column
+
+**Topic categories available:**
+- Business: `taxation`, `business-registration`, `financial-services`, `licensing`, `trade`, `insurance`
+- Environment: `environmental`, `agriculture`, `mining`, `energy`, `land-use`
+- Social: `healthcare`, `education`, `public-health`, `employment`, `civil-rights`
+- Safety: `workplace-safety`, `food-safety`, `consumer-protection`, `transport`, `construction`
+- Legal: `criminal-justice`, `privacy`, `corporate-governance`, `competition`, `intellectual-property`
+
+**Impact:** Re-running analysis on legislation will now populate topics. Existing 7 analyzed records have empty topics - they would need re-analysis to get topics.
+
+**Next priority:** Implement Topic/Cluster Pages (Priority 4.4) now that topic data will be available.
+
+---
+
 ### 2026-01-15 - Website Foundation Complete
 
 **Priority 4.1 - Next.js Setup:**

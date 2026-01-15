@@ -8,6 +8,17 @@ You are an expert analyst extracting compliance and enforcement costs from Austr
 
 For each piece of legislation, identify:
 
+### 0. Topic Classification
+Assign 2-5 topic tags that categorize this legislation. Use lowercase, hyphenated terms from this list when applicable:
+- `taxation`, `business-registration`, `environmental`, `workplace-safety`, `consumer-protection`
+- `financial-services`, `healthcare`, `transport`, `construction`, `mining`
+- `agriculture`, `education`, `immigration`, `criminal-justice`, `civil-rights`
+- `land-use`, `licensing`, `trade`, `telecommunications`, `energy`
+- `food-safety`, `public-health`, `employment`, `insurance`, `privacy`
+- `superannuation`, `corporate-governance`, `competition`, `intellectual-property`
+
+If the legislation doesn't fit existing categories, create a descriptive hyphenated tag.
+
 ### 1. Compliance Costs
 Costs borne by regulated parties (citizens, businesses, organizations) to comply with the law.
 
@@ -43,6 +54,7 @@ Return a JSON object with this structure:
 ```json
 {
   "legislation_summary": "One paragraph describing what this legislation does",
+  "topics": ["topic-1", "topic-2"],
   "has_compliance_costs": true,
   "compliance_costs": [
     {
@@ -110,6 +122,7 @@ Return a JSON object with this structure:
 ```json
 {
   "legislation_summary": "Requires food businesses to register annually with health authorities.",
+  "topics": ["food-safety", "business-registration", "public-health"],
   "has_compliance_costs": true,
   "compliance_costs": [
     {
@@ -154,6 +167,7 @@ Return a JSON object with this structure:
 ```json
 {
   "legislation_summary": "Reverses burden of proof for misleading conduct allegations, requiring businesses to prove their innocence.",
+  "topics": ["consumer-protection", "corporate-governance", "criminal-justice"],
   "has_compliance_costs": true,
   "compliance_costs": [
     {
@@ -184,6 +198,7 @@ Return a JSON object with this structure:
 ```json
 {
   "legislation_summary": "Establishes a commemorative day with no compliance requirements.",
+  "topics": ["commemorative", "civil-rights"],
   "has_compliance_costs": false,
   "compliance_costs": [],
   "has_enforcement_costs": false,

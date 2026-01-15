@@ -205,10 +205,11 @@ def save_analysis_to_db(conn: sqlite3.Connection, legislation_id: str, analysis:
             enforcement.get('description', '') + (f"\n\n{enforcement.get('indefinite_notes', '')}" if enforcement.get('indefinite_notes') else '')
         ))
 
-    # Update legislation analysis status
+    # Update legislation analysis status and topics
+    topics = analysis.get('topics', [])
     cursor.execute(
-        "UPDATE legislation SET analysis_status = 'complete' WHERE id = ?",
-        (legislation_id,)
+        "UPDATE legislation SET analysis_status = 'complete', topics = ? WHERE id = ?",
+        (json.dumps(topics), legislation_id)
     )
 
     conn.commit()
@@ -315,6 +316,7 @@ def main():
             save_analysis_to_db(conn, leg['id'], analysis)
 
             # Print summary
+            print(f"  Topics: {', '.join(analysis.get('topics', []))}")
             print(f"  Confidence: {analysis.get('confidence', 'unknown')}")
             print(f"  Compliance costs: {len(analysis.get('compliance_costs', []))}")
             print(f"  Has enforcement cost: {analysis.get('has_enforcement_costs', False)}")
