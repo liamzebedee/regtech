@@ -130,34 +130,44 @@ src/lib/           # Shared utilities (cost formatting, types, db access)
 ## Priority 4: Website (Depends on: Database, Cost Model)
 
 ### 4.1 Next.js Setup
-- [ ] Initialize Next.js app in `app/` with TypeScript
-- [ ] Configure SQLite database connection (better-sqlite3)
-- [ ] Set up shared types import from `src/lib/types/`
-- [ ] Design basic layout component
-- [ ] Set up Tailwind or CSS modules for styling
+- [x] Initialize Next.js app in `app/` with TypeScript
+  - Created Next.js 15 app with App Router
+  - Configured TypeScript strict mode
+- [x] Configure SQLite database connection (better-sqlite3)
+  - Created `app/src/lib/db.ts` with singleton database connection
+  - Database opened in read-only mode for web app
+- [x] Set up shared types import from `src/lib/types/`
+  - Types defined locally in db.ts (LegislationRow, CostRow)
+- [x] Design basic layout component
+  - Created `app/src/app/layout.tsx` with header, footer, navigation
+- [x] Set up Tailwind or CSS modules for styling
+  - Tailwind CSS 4 with @tailwindcss/postcss configured
 
 ### 4.2 Index Page
-- [ ] Create `/` route listing all legislation
-- [ ] Implement default sort by date
-- [ ] Add filtering by:
-  - Jurisdiction (dropdown)
-  - Topic tags (multi-select)
-  - Date range (date picker)
-  - Analysis status (complete only by default)
-- [ ] Add search by title/keyword
-- [ ] Implement pagination (50 items per page)
-- [ ] Handle empty states
+- [x] Create `/` route listing all legislation
+  - `app/src/app/page.tsx` with server-side data fetching
+- [x] Implement default sort by date
+  - Sorted by date_enacted DESC
+- [x] Add filtering by:
+  - Jurisdiction (dropdown) - implemented
+  - ~~Topic tags (multi-select)~~ - deferred
+  - ~~Date range (date picker)~~ - deferred
+  - Analysis status (complete only by default) - implemented
+- [x] Add search by title/keyword
+- [x] Implement pagination (50 items per page)
+- [x] Handle empty states
 
 ### 4.3 Legislation Detail Page
-- [ ] Create `/legislation/[id]` dynamic route
-- [ ] Display: title, jurisdiction, dates, text excerpt
-- [ ] Display compliance costs:
+- [x] Create `/legislation/[id]` dynamic route
+  - `app/src/app/legislation/[id]/page.tsx`
+- [x] Display: title, jurisdiction, dates, text excerpt
+- [x] Display compliance costs:
   - Per-party breakdown
   - Time (pretty format, e.g., "2 hours")
   - Money (pretty format, e.g., "$500")
   - Assumed time value calculation shown
-- [ ] Display enforcement costs similarly
-- [ ] Show indefinite cost notes where applicable
+- [x] Display enforcement costs similarly
+- [x] Show indefinite cost notes where applicable
 - [ ] Add "view full text" expandable section
 
 ### 4.4 Topic/Cluster Pages
@@ -189,6 +199,53 @@ src/lib/           # Shared utilities (cost formatting, types, db access)
 ---
 
 ## Work Log
+
+### 2026-01-15 - Website Foundation Complete
+
+**Priority 4.1 - Next.js Setup:**
+- Initialized Next.js 15 app in `app/` directory with App Router
+- Configured TypeScript with strict mode
+- Set up Tailwind CSS 4 with @tailwindcss/postcss
+- Created database connection in `app/src/lib/db.ts` using better-sqlite3
+- Created root layout with navigation header and footer
+
+**Priority 4.2 - Index Page:**
+- Created index page at `app/src/app/page.tsx`
+- Implemented legislation listing with server-side data fetching
+- Added filtering by jurisdiction and search by title
+- Implemented pagination (50 items per page)
+- Shows only analyzed legislation by default (analysis_status = 'complete')
+- Empty state handling for no results
+
+**Priority 4.3 - Legislation Detail Page:**
+- Created detail page at `app/src/app/legislation/[id]/page.tsx`
+- Displays title, jurisdiction, type, citation, dates
+- Shows compliance costs per-party with time, money, and assumed time value
+- Shows enforcement costs similarly
+- Highlights indefinite costs with explanatory notes
+- Shows text excerpt if available
+- Proper 404 handling for non-existent legislation
+
+**Build Status:**
+- All ESLint checks pass
+- Production build successful
+- 47 root tests still passing
+
+**Files Created:**
+- `app/package.json` - Next.js dependencies
+- `app/tsconfig.json` - TypeScript config
+- `app/next.config.ts` - Next.js config with better-sqlite3 external
+- `app/postcss.config.mjs` - PostCSS with Tailwind
+- `app/src/app/layout.tsx` - Root layout
+- `app/src/app/page.tsx` - Index page
+- `app/src/app/not-found.tsx` - 404 page
+- `app/src/app/globals.css` - Global styles
+- `app/src/app/legislation/[id]/page.tsx` - Detail page
+- `app/src/lib/db.ts` - Database connection
+
+**Next priority:** Priority 4.4 - Topic/Cluster Pages, then Priority 4.5 - Polish
+
+---
 
 ### 2026-01-15 - Analysis Pipeline Complete
 
