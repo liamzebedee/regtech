@@ -16,6 +16,7 @@ Options:
     --dry-run           Print what would be analyzed without calling Claude
     --retries N         Number of retry attempts for transient failures (default: 3)
     --retry-failed      Re-analyze previously failed legislation
+    --workers N         Number of parallel workers (default: 1)
 """
 
 import argparse
@@ -27,7 +28,10 @@ import time
 from pathlib import Path
 from datetime import datetime
 from typing import Optional
+from multiprocessing import Pool, cpu_count
+from dataclasses import dataclass
 import re
+import os
 
 
 class RetryableError(Exception):
@@ -62,6 +66,29 @@ _corpus_index: Optional[dict] = None
 
 # Token limit for Claude context (stay under 50% saturation)
 MAX_TEXT_CHARS = 100_000  # ~25k tokens, well under the limit
+
+# SQLite timeout for concurrent access (seconds)
+# WHY: When multiple workers write to the database, locks may occur.
+# A 30-second timeout prevents failures during brief contention.
+DB_TIMEOUT = 30
+
+
+@dataclass
+class WorkerConfig:
+    """
+    Configuration passed to each worker process.
+
+    WHY: Worker processes are forked and need their own database connections.
+    This dataclass holds the configuration each worker needs to initialize.
+    """
+    db_path: Path
+    max_retries: int
+    prompt_template: str
+
+
+# Global worker config (set by worker_init)
+_worker_config: Optional[WorkerConfig] = None
+_worker_conn: Optional[sqlite3.Connection] = None
 
 # Validation constants
 VALID_PARTIES = {'citizen', 'business', 'small_business', 'large_business', 'government', 'nonprofit'}
@@ -396,6 +423,130 @@ def save_analysis_to_db(conn: sqlite3.Connection, legislation_id: str, analysis:
     conn.commit()
 
 
+def worker_init(config: WorkerConfig) -> None:
+    """
+    Initialize a worker process with its own database connection.
+
+    WHY: Each worker process needs its own SQLite connection because connections
+    are not thread/process safe. This is called once when each worker starts.
+    """
+    global _worker_config, _worker_conn
+    _worker_config = config
+    _worker_conn = sqlite3.connect(config.db_path, timeout=DB_TIMEOUT)
+
+    # Pre-load the corpus index in this process
+    load_corpus_index()
+
+    pid = os.getpid()
+    print(f"[Worker {pid}] Initialized with database connection")
+
+
+def worker_process_item(leg: dict) -> dict:
+    """
+    Process a single legislation item in a worker process.
+
+    WHY: This function is designed to be called by multiprocessing.Pool.map().
+    It processes one legislation record and returns a result summary.
+
+    Args:
+        leg: Dictionary with id, title, citation, jurisdiction
+
+    Returns:
+        Dictionary with: id, success, analyzed, error, validation_warnings
+    """
+    global _worker_config, _worker_conn
+
+    if _worker_config is None or _worker_conn is None:
+        return {
+            'id': leg['id'],
+            'success': False,
+            'error': 'Worker not initialized'
+        }
+
+    pid = os.getpid()
+    result = {
+        'id': leg['id'],
+        'success': False,
+        'analyzed': False,
+        'error': None,
+        'validation_warnings': 0
+    }
+
+    print(f"[Worker {pid}] Analyzing: {leg['id']}")
+    print(f"[Worker {pid}]   Title: {leg['title']}")
+
+    try:
+        # Get full text from corpus
+        text = get_legislation_text(leg['id'])
+        if not text:
+            result['error'] = "Could not find text in corpus"
+            # Mark as failed
+            _worker_conn.execute(
+                "UPDATE legislation SET analysis_status = 'failed' WHERE id = ?",
+                (leg['id'],)
+            )
+            _worker_conn.commit()
+            print(f"[Worker {pid}]   ERROR: {result['error']}")
+            return result
+
+        # Truncate if needed
+        text, was_truncated = truncate_text(text)
+        if was_truncated:
+            print(f"[Worker {pid}]   WARNING: Text truncated to {MAX_TEXT_CHARS:,} chars")
+
+        # Call Claude for analysis (with retry)
+        print(f"[Worker {pid}]   Calling Claude...")
+        analysis = analyze_with_retry(
+            text,
+            leg['citation'] or leg['title'],
+            _worker_config.prompt_template,
+            max_retries=_worker_config.max_retries
+        )
+
+        # Validate the response
+        validation_errors = validate_analysis(analysis)
+        if validation_errors:
+            print(f"[Worker {pid}]   VALIDATION WARNINGS:")
+            for err in validation_errors[:5]:
+                print(f"[Worker {pid}]     - {err}")
+            if len(validation_errors) > 5:
+                print(f"[Worker {pid}]     ... and {len(validation_errors) - 5} more")
+            result['validation_warnings'] = len(validation_errors)
+
+        # Save results
+        save_analysis_to_db(_worker_conn, leg['id'], analysis)
+
+        # Print summary
+        print(f"[Worker {pid}]   Topics: {', '.join(analysis.get('topics', []))}")
+        print(f"[Worker {pid}]   Confidence: {analysis.get('confidence', 'unknown')}")
+        print(f"[Worker {pid}]   Compliance costs: {len(analysis.get('compliance_costs', []))}")
+        print(f"[Worker {pid}]   Has enforcement cost: {analysis.get('has_enforcement_costs', False)}")
+
+        result['success'] = True
+        result['analyzed'] = True
+
+    except NonRetryableError as e:
+        result['error'] = f"Non-retryable: {e}"
+        print(f"[Worker {pid}]   ERROR (non-retryable): {e}")
+        _worker_conn.execute(
+            "UPDATE legislation SET analysis_status = 'failed' WHERE id = ?",
+            (leg['id'],)
+        )
+        _worker_conn.commit()
+
+    except (RetryableError, Exception) as e:
+        result['error'] = str(e)
+        print(f"[Worker {pid}]   ERROR: {e}")
+        _worker_conn.execute(
+            "UPDATE legislation SET analysis_status = 'failed' WHERE id = ?",
+            (leg['id'],)
+        )
+        _worker_conn.commit()
+
+    print(f"[Worker {pid}]   Done")
+    return result
+
+
 def analyze_with_retry(legislation_text: str, citation: str, prompt_template: str,
                        max_retries: int = 3) -> dict:
     """
@@ -507,7 +658,17 @@ def main():
     parser.add_argument('--db', type=Path, default=DEFAULT_DB_PATH, help="Database path")
     parser.add_argument('--retries', type=int, default=3, help="Number of retry attempts for transient failures")
     parser.add_argument('--retry-failed', action='store_true', help="Re-analyze previously failed legislation")
+    parser.add_argument('--workers', type=int, default=1,
+                        help=f"Number of parallel workers (default: 1, max recommended: {cpu_count()})")
     args = parser.parse_args()
+
+    # Validate workers
+    if args.workers < 1:
+        print("ERROR: --workers must be at least 1")
+        sys.exit(1)
+    if args.workers > cpu_count() * 2:
+        print(f"WARNING: Using {args.workers} workers exceeds 2x CPU count ({cpu_count()})")
+        print("This may cause resource contention. Consider reducing --workers.")
 
     # Load prompt template
     prompt_template = load_prompt_template()
@@ -543,94 +704,143 @@ def main():
             print(f"  Title: {leg['title']}")
             print(f"  Jurisdiction: {leg['jurisdiction']}")
             print()
+        print(f"Would use {args.workers} worker(s)")
         conn.close()
         return
 
-    # Process each legislation
+    # Close main connection - workers will open their own
+    conn.close()
+
+    # Process legislation
     analyzed = 0
     errors = 0
     validation_warnings = 0
 
-    for leg in pending:
-        print(f"Analyzing: {leg['id']}")
-        print(f"  Title: {leg['title']}")
-
-        try:
-            # Get full text from corpus
-            text = get_legislation_text(leg['id'])
-            if not text:
-                print(f"  ERROR: Could not find text in corpus")
-                errors += 1
-                continue
-
-            # Truncate if needed
-            text, was_truncated = truncate_text(text)
-            if was_truncated:
-                print(f"  WARNING: Text truncated to {MAX_TEXT_CHARS:,} chars")
-
-            # Call Claude for analysis (with retry)
-            print(f"  Calling Claude...")
-            analysis = analyze_with_retry(text, leg['citation'] or leg['title'],
-                                          prompt_template, max_retries=args.retries)
-
-            # Validate the response
-            validation_errors = validate_analysis(analysis)
-            if validation_errors:
-                print(f"  VALIDATION WARNINGS:")
-                for err in validation_errors[:5]:  # Show first 5
-                    print(f"    - {err}")
-                if len(validation_errors) > 5:
-                    print(f"    ... and {len(validation_errors) - 5} more")
-                validation_warnings += 1
-                # Still save the analysis - warnings don't block, just inform
-
-            # Save results
-            save_analysis_to_db(conn, leg['id'], analysis)
-
-            # Print summary
-            print(f"  Topics: {', '.join(analysis.get('topics', []))}")
-            print(f"  Confidence: {analysis.get('confidence', 'unknown')}")
-            print(f"  Compliance costs: {len(analysis.get('compliance_costs', []))}")
-            print(f"  Has enforcement cost: {analysis.get('has_enforcement_costs', False)}")
-
-            analyzed += 1
-
-        except NonRetryableError as e:
-            print(f"  ERROR (non-retryable): {e}")
-            # Mark as failed - won't retry
-            conn.execute(
-                "UPDATE legislation SET analysis_status = 'failed' WHERE id = ?",
-                (leg['id'],)
-            )
-            conn.commit()
-            errors += 1
-
-        except (RetryableError, Exception) as e:
-            print(f"  ERROR: {e}")
-            # Mark as failed - may be retried with --retry-failed
-            conn.execute(
-                "UPDATE legislation SET analysis_status = 'failed' WHERE id = ?",
-                (leg['id'],)
-            )
-            conn.commit()
-            errors += 1
-
+    if args.workers > 1:
+        # Parallel processing with multiprocessing Pool
+        print(f"Starting {args.workers} parallel workers...")
         print()
 
+        # Create worker configuration
+        config = WorkerConfig(
+            db_path=args.db,
+            max_retries=args.retries,
+            prompt_template=prompt_template
+        )
+
+        # Use fork start method for faster worker init (Unix only)
+        # Workers share the corpus index loaded in the main process
+        with Pool(
+            processes=args.workers,
+            initializer=worker_init,
+            initargs=(config,)
+        ) as pool:
+            # Process all items in parallel using imap for ordered results
+            # This allows us to see progress as items complete
+            results = pool.map(worker_process_item, pending)
+
+        # Aggregate results
+        for result in results:
+            if result.get('analyzed'):
+                analyzed += 1
+            if result.get('error'):
+                errors += 1
+            validation_warnings += result.get('validation_warnings', 0)
+
+    else:
+        # Sequential processing (original behavior for backwards compatibility)
+        # Re-open connection for single-worker mode
+        conn = sqlite3.connect(args.db, timeout=DB_TIMEOUT)
+
+        for leg in pending:
+            print(f"Analyzing: {leg['id']}")
+            print(f"  Title: {leg['title']}")
+
+            try:
+                # Get full text from corpus
+                text = get_legislation_text(leg['id'])
+                if not text:
+                    print(f"  ERROR: Could not find text in corpus")
+                    conn.execute(
+                        "UPDATE legislation SET analysis_status = 'failed' WHERE id = ?",
+                        (leg['id'],)
+                    )
+                    conn.commit()
+                    errors += 1
+                    continue
+
+                # Truncate if needed
+                text, was_truncated = truncate_text(text)
+                if was_truncated:
+                    print(f"  WARNING: Text truncated to {MAX_TEXT_CHARS:,} chars")
+
+                # Call Claude for analysis (with retry)
+                print(f"  Calling Claude...")
+                analysis = analyze_with_retry(text, leg['citation'] or leg['title'],
+                                              prompt_template, max_retries=args.retries)
+
+                # Validate the response
+                validation_errors_list = validate_analysis(analysis)
+                if validation_errors_list:
+                    print(f"  VALIDATION WARNINGS:")
+                    for err in validation_errors_list[:5]:  # Show first 5
+                        print(f"    - {err}")
+                    if len(validation_errors_list) > 5:
+                        print(f"    ... and {len(validation_errors_list) - 5} more")
+                    validation_warnings += 1
+                    # Still save the analysis - warnings don't block, just inform
+
+                # Save results
+                save_analysis_to_db(conn, leg['id'], analysis)
+
+                # Print summary
+                print(f"  Topics: {', '.join(analysis.get('topics', []))}")
+                print(f"  Confidence: {analysis.get('confidence', 'unknown')}")
+                print(f"  Compliance costs: {len(analysis.get('compliance_costs', []))}")
+                print(f"  Has enforcement cost: {analysis.get('has_enforcement_costs', False)}")
+
+                analyzed += 1
+
+            except NonRetryableError as e:
+                print(f"  ERROR (non-retryable): {e}")
+                # Mark as failed - won't retry
+                conn.execute(
+                    "UPDATE legislation SET analysis_status = 'failed' WHERE id = ?",
+                    (leg['id'],)
+                )
+                conn.commit()
+                errors += 1
+
+            except (RetryableError, Exception) as e:
+                print(f"  ERROR: {e}")
+                # Mark as failed - may be retried with --retry-failed
+                conn.execute(
+                    "UPDATE legislation SET analysis_status = 'failed' WHERE id = ?",
+                    (leg['id'],)
+                )
+                conn.commit()
+                errors += 1
+
+            print()
+
+        conn.close()
+
     # Summary
+    print()
     print("=" * 50)
+    print(f"Workers: {args.workers}")
     print(f"Analyzed: {analyzed}")
     print(f"Errors: {errors}")
     if validation_warnings:
         print(f"Validation warnings: {validation_warnings}")
 
     # Show database stats
+    conn = sqlite3.connect(args.db, timeout=DB_TIMEOUT)
     cursor = conn.cursor()
     cursor.execute("SELECT analysis_status, COUNT(*) FROM legislation GROUP BY analysis_status")
     print("\nDatabase status:")
     for row in cursor.fetchall():
         print(f"  {row[0]}: {row[1]:,}")
-
     conn.close()
 
 

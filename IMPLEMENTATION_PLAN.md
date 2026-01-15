@@ -116,7 +116,12 @@ src/lib/           # Shared utilities (cost formatting, types, db access)
   - Calls Claude CLI with JSON output parsing
   - Writes to database with progress reporting
   - Updates `analysis_status`
-- [ ] Implement parallelization (multiple Claude instances)
+- [x] Implement parallelization (multiple Claude instances)
+  - Added `--workers N` flag for parallel processing
+  - Uses Python multiprocessing.Pool for concurrent analysis
+  - Each worker has its own SQLite connection with 30s timeout for locking
+  - Workers pre-load corpus index for O(1) lookups
+  - Backwards compatible: `--workers 1` (default) uses sequential mode
 - [x] Add idempotency: skip already-analyzed documents
 - [x] Implement retry logic for failed analyses
 - [x] Add logging and progress reporting
@@ -201,6 +206,30 @@ src/lib/           # Shared utilities (cost formatting, types, db access)
 ---
 
 ## Work Log
+
+### 2026-01-16 - Analysis Pipeline Parallelization Complete (Priority 3.2)
+
+**WHY:** With 40,000+ pending legislation records, sequential analysis would take weeks. Parallelization enables multiple Claude instances to analyze different legislation simultaneously, dramatically reducing total analysis time.
+
+**Changes:**
+- Added `--workers N` flag to `analysis/scripts/analyze_legislation.py` (default: 1)
+- Implemented Python multiprocessing.Pool for concurrent processing
+- Each worker process has its own SQLite connection with 30-second timeout for lock handling
+- Workers pre-load the corpus byte-offset index for O(1) lookups
+- Added WorkerConfig dataclass for passing configuration to worker processes
+- Added worker_init() and worker_process_item() functions for multiprocessing compatibility
+- Backwards compatible: `--workers 1` uses original sequential mode
+
+**Usage:**
+```bash
+# Analyze 100 documents using 4 parallel workers
+python analysis/scripts/analyze_legislation.py --limit 100 --workers 4
+```
+
+**Files Modified:**
+- `analysis/scripts/analyze_legislation.py` - added parallelization support
+
+---
 
 ### 2026-01-16 - Corpus Indexing and Date Range Filtering Complete
 

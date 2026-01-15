@@ -20,7 +20,8 @@ npm start         # Start production server
 ### Analysis Pipeline
 ```bash
 python analysis/scripts/index_corpus.py    # Index corpus into database
-python analysis/scripts/analyze_legislation.py --limit 10  # Analyze legislation
+python analysis/scripts/analyze_legislation.py --limit 10  # Analyze legislation (single worker)
+python analysis/scripts/analyze_legislation.py --limit 100 --workers 4  # Parallel analysis
 ```
 
 ## Database Location
