@@ -117,7 +117,12 @@ src/lib/           # Shared utilities (cost formatting, types, db access)
   - Tested with proclamations (no costs) and Defence Legislation Amendment (Woomera)
 - [x] Iterate on prompt based on output quality
   - Successfully extracts compliance/enforcement costs, party identification, time/money costs, indefinite flags
-- [ ] Document effective prompt patterns
+- [x] Document effective prompt patterns
+  - Created `analysis/docs/prompt_patterns.md` with 12 patterns that worked well:
+    - Role definition, structured output schema, explicit party enumeration
+    - Concrete examples, conservative estimation guidelines, multi-party instruction
+    - Null vs zero distinction, reasoning exposure, current value standardization
+    - Topic vocabulary, reference tracking, confidence calibration
 
 ### 3.2 Pipeline Implementation
 - [x] Create `analysis/analyze.py` (or .sh) orchestrator script
@@ -222,7 +227,13 @@ src/lib/           # Shared utilities (cost formatting, types, db access)
 
 ### 5.2 Documentation
 - [x] Update README with setup instructions
-- [ ] Document analysis methodology
+- [x] Document analysis methodology
+  - Created `analysis/docs/methodology.md` covering:
+    - Why AI-powered analysis (40k+ documents, manual analysis infeasible)
+    - Pipeline stages: selection, retrieval, preprocessing, analysis, validation, storage
+    - Quality assurance: conservative estimation, confidence levels, test suite
+    - Limitations: truncation, historical legislation, cross-references
+    - Parallelization and retry logic documentation
 - [x] Add sample queries for database exploration
   - Expanded README.md sample queries section with 9 practical SQL examples:
     - Database status overview, high compliance costs, jurisdiction totals
@@ -232,6 +243,29 @@ src/lib/           # Shared utilities (cost formatting, types, db access)
 ---
 
 ## Work Log
+### 2026-01-16 - Analysis Documentation Complete (Priority 3.1 & 5.2)
+
+**WHY:** Documentation ensures the analysis methodology and prompt engineering decisions are preserved for future maintenance and improvement. Without documentation, future developers would need to reverse-engineer decisions from code.
+
+**Changes:**
+- Created `analysis/docs/methodology.md` - Comprehensive analysis methodology documentation
+  - Pipeline stages and data flow
+  - Quality assurance measures
+  - Known limitations
+  - Parallelization and retry logic
+- Created `analysis/docs/prompt_patterns.md` - 12 effective prompt engineering patterns
+  - Role definition, structured output schema
+  - Conservative estimation, confidence calibration
+  - Anti-patterns to avoid
+
+**Files Created:**
+- `analysis/docs/methodology.md`
+- `analysis/docs/prompt_patterns.md`
+
+**Build Status:** All 52 tests passing, Next.js build successful
+
+---
+
 ### 2026-01-16 - External Legislation Reference Tracking Complete (Priority 3.3)
 
 **WHY:** Many pieces of legislation reference other Acts/Regulations for definitions, penalties, requirements, or amendments. Without tracking these references, analyses are incomplete - we can't tell which legislation depends on others or flag analyses that may miss context from referenced legislation. This feature enables dependency tracking and completeness monitoring.
